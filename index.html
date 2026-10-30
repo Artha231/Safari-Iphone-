@@ -2,229 +2,251 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>SOP Bypass via about:blank Defect</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOP Bypass Test Suite (Fixed)</title>
 <style>
-  body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
-  #log { background: #000; padding: 15px; border: 1px solid #444; height: 300px; overflow-y: auto; white-space: pre-wrap; margin-top: 20px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #d4d4d4; padding: 20px; margin: 0; }
+  h1 { color: #fff; border-bottom: 2px solid #333; padding-bottom: 10px; }
+  .panel { background: #2d2d2d; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+  button { padding: 10px 20px; background: #0e639c; color: #fff; border: none; border-radius: 4px; cursor: pointer; margin: 5px; font-size: 14px; }
+  button:hover { background: #1177bb; }
+  button:disabled { background: #555; cursor: not-allowed; }
+  #log { background: #000; padding: 15px; border: 1px solid #444; border-radius: 4px; height: 350px; overflow-y: auto; white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 12px; }
   .success { color: #4caf50; font-weight: bold; }
   .error { color: #f44336; font-weight: bold; }
   .info { color: #2196f3; }
-  button { padding: 10px 20px; background: #0e639c; color: #fff; border: none; cursor: pointer; margin: 5px; }
-  button:hover { background: #1177bb; }
-  iframe { width: 100%; height: 300px; border: 2px solid #555; margin-top: 20px; background: #fff; }
+  .warn { color: #ff9800; }
+  #frameContainer { margin-top: 20px; }
+  iframe { width: 100%; height: 200px; border: 2px solid #555; background: #fff; border-radius: 4px; }
 </style>
 </head>
 <body>
 
-<h1>SOP Bypass Test (about:blank -> google.com)</h1>
-<button id="btn1">Uji Iframe about:blank</button>
-<button id="btn2">Uji Window.open about:blank</button>
-<button id="clear">Bersihkan Log</button>
-<div id="log">Menunggu...</div>
+<h1>🔒 SOP Bypass Test Suite (Fixed)</h1>
+
+<div class="panel">
+  <p style="margin-top:0; color:#aaa;">Pilih metode pengujian di bawah ini. Setiap metode akan mencatat hasil di log.</p>
+  <button id="btn1">1. Iframe about:blank → Google</button>
+  <button id="btn2">2. Window.open about:blank → Google</button>
+  <button id="btn3">3. Iframe Sandbox (allow-same-origin)</button>
+  <button id="btn4">4. Blob URL → Google</button>
+  <button id="btn5">5. Iframe srcdoc → Google</button>
+  <button id="btn6">6. Data URL → Google</button>
+  <button id="clear" style="background:#c62828;">Bersihkan Log</button>
+</div>
+
+<div id="log">Menunggu perintah...</div>
 <div id="frameContainer"></div>
 
 <script>
-const logEl = document.getElementById('log');
+(function() {
+  'use strict';
 
-function log(msg, type = '') {
-  const time = new Date().toISOString().substr(11, 8);
-  const line = `[${time}] ${msg}\n`;
-  logEl.innerHTML += type ? `<span class="${type}">${line}</span>` : line;
-  logEl.scrollTop = logEl.scrollHeight;
-  console.log(msg);
-}
+  const logEl = document.getElementById('log');
+  const frameContainer = document.getElementById('frameContainer');
 
-document.getElementById('clear').onclick = () => { logEl.innerHTML = ''; };
+  function log(msg, type = '') {
+    const time = new Date().toISOString().substr(11, 8);
+    const line = `[${time}] ${msg}\n`;
+    const span = document.createElement('span');
+    if (type) span.className = type;
+    span.textContent = line;
+    logEl.appendChild(span);
+    logEl.scrollTop = logEl.scrollHeight;
+    console.log(msg);
+  }
 
-// ============================================
-// METODE 1: Iframe about:blank -> google.com
-// ============================================
-document.getElementById('btn1').onclick = () => {
-  log('=== METODE 1: Iframe about:blank ===', 'info');
-  const container = document.getElementById('frameContainer');
-  container.innerHTML = '';
+  function clearLog() {
+    logEl.textContent = '';
+    frameContainer.innerHTML = '';
+  }
 
-  // 1. Buat iframe kosong
-  const iframe = document.createElement('iframe');
-  iframe.src = 'about:blank';
-  container.appendChild(iframe);
-  log('Iframe about:blank dibuat.', 'info');
-
-  // 2. Tunggu iframe siap, lalu ubah ke Google
-  setTimeout(() => {
+  // ============================================
+  // UTILITY: Safe Access Check
+  // ============================================
+  function safeAccess(iframe, label) {
     try {
-      // Coba akses dokumen about:blank (ini pasti bisa karena same-origin)
-      log('Mengubah src ke google.com...', 'info');
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      if (!doc) {
+        log(`${label}: ❌ contentDocument null (kemungkinan cross-origin)`, 'error');
+        return;
+      }
+      log(`${label}: ✅ Akses dokumen berhasil!`, 'success');
+      log(`${label}: Title = "${doc.title}"`, 'success');
+      log(`${label}: URL = ${doc.location ? doc.location.href : 'N/A'}`, 'success');
+    } catch (e) {
+      log(`${label}: ❌ Diblokir SOP: ${e.name} - ${e.message}`, 'error');
+    }
+  }
+
+  // ============================================
+  // METODE 1: Iframe about:blank → Google
+  // ============================================
+  document.getElementById('btn1').onclick = () => {
+    log('=== METODE 1: Iframe about:blank → Google ===', 'info');
+    clearLog();
+    
+    const iframe = document.createElement('iframe');
+    iframe.src = 'about:blank';
+    iframe.style.display = 'block';
+    frameContainer.appendChild(iframe);
+
+    setTimeout(() => {
+      log('Mengubah src ke https://www.google.com...', 'info');
       iframe.src = 'https://www.google.com';
 
-      // 3. Tunggu sebentar (misal 500ms), lalu coba akses DOM
+      // Coba akses setelah 1 detik
+      setTimeout(() => {
+        safeAccess(iframe, 'Metode 1');
+      }, 1000);
+    }, 100);
+  };
+
+  // ============================================
+  // METODE 2: Window.open about:blank → Google
+  // ============================================
+  document.getElementById('btn2').onclick = () => {
+    log('=== METODE 2: Window.open about:blank → Google ===', 'info');
+    
+    const win = window.open('about:blank', '_blank');
+    if (!win) {
+      log('❌ Popup diblokir. Izinkan popup untuk melanjutkan.', 'error');
+      return;
+    }
+    log('Window kosong dibuka.', 'info');
+
+    setTimeout(() => {
+      try {
+        win.location = 'https://www.google.com';
+        log('Navigasi ke Google dikirim.', 'info');
+      } catch (e) {
+        log('❌ Gagal navigasi: ' + e.message, 'error');
+      }
+
       setTimeout(() => {
         try {
-          // Coba akses document dari iframe
-          const doc = iframe.contentDocument || iframe.contentWindow.document;
+          const doc = win.document;
           if (doc) {
-            log('✅ BERHASIL AKSES DOKUMEN! (SOP Bypass)', 'success');
-            log('Title: ' + doc.title, 'success');
-            log('URL: ' + doc.location.href, 'success');
+            log('Metode 2: ✅ Akses window.document berhasil!', 'success');
+            log('Metode 2: Title = "' + doc.title + '"', 'success');
           } else {
-            log('❌ Dokumen kosong/null.', 'error');
+            log('Metode 2: ❌ Dokumen null.', 'error');
           }
         } catch (e) {
-          log('❌ Gagal akses dokumen (SOP memblokir): ' + e.message, 'error');
+          log('Metode 2: ❌ Diblokir SOP: ' + e.name + ' - ' + e.message, 'error');
         }
-      }, 500);
+      }, 1000);
+    }, 100);
+  };
 
-    } catch (e) {
-      log('❌ Error saat navigasi: ' + e.message, 'error');
-    }
-  }, 100);
-};
+  // ============================================
+  // METODE 3: Iframe Sandbox (allow-same-origin)
+  // ============================================
+  document.getElementById('btn3').onclick = () => {
+    log('=== METODE 3: Iframe Sandbox (allow-same-origin) ===', 'info');
+    clearLog();
 
-// ============================================
-// METODE 2: Window.open about:blank -> google.com
-// ============================================
-document.getElementById('btn2').onclick = () => {
-  log('=== METODE 2: Window.open about:blank ===', 'info');
+    const iframe = document.createElement('iframe');
+    iframe.sandbox = 'allow-same-origin allow-scripts';
+    iframe.src = 'about:blank';
+    iframe.style.display = 'block';
+    frameContainer.appendChild(iframe);
 
-  // 1. Buka window kosong
-  const win = window.open('about:blank', '_blank');
-  if (!win) {
-    log('❌ Popup diblokir.', 'error');
-    return;
-  }
-  log('Window kosong dibuka.', 'info');
-
-  // 2. Ubah location ke Google
-  try {
-    win.location = 'https://www.google.com';
-    log('Navigasi ke google.com dikirim.', 'info');
-  } catch (e) {
-    log('❌ Gagal navigasi: ' + e.message, 'error');
-  }
-
-  // 3. Coba akses DOM segera setelah navigasi (Race Condition)
-  setTimeout(() => {
-    try {
-      const doc = win.document;
-      if (doc) {
-        log('✅ BERHASIL AKSES WINDOW.DOCUMENT! (SOP Bypass)', 'success');
-        log('Title: ' + doc.title, 'success');
-      } else {
-        log('❌ Dokumen null.', 'error');
+    // Isi about:blank dengan konten
+    setTimeout(() => {
+      try {
+        iframe.contentDocument.write('<h1 id="test">Blank Frame</h1><p>Loaded</p>');
+        iframe.contentDocument.close();
+        log('Konten ditulis ke about:blank.', 'info');
+      } catch (e) {
+        log('Gagal menulis ke about:blank: ' + e.message, 'error');
       }
-    } catch (e) {
-      log('❌ Gagal akses window (SOP memblokir): ' + e.message, 'error');
-    }
-  }, 500);
-};
+    }, 100);
 
-// ============================================
-// METODE 3: Trik "window.name" (kadang lolos)
-// ============================================
-document.getElementById('btn3').onclick = () => {
-  log('=== METODE 3: window.name Leak ===', 'info');
-  
-  const iframe = document.createElement('iframe');
-  iframe.src = 'about:blank';
-  iframe.name = 'leak_test'; // Set name
-  document.body.appendChild(iframe);
-  
-  // Coba kirim payload via name
-  iframe.contentWindow.name = 'secret_data_123';
-  
-  // Ubah ke google
-  iframe.src = 'https://www.google.com';
-  
-  setTimeout(() => {
-    try {
-      // Coba baca name dari iframe yang sekarang berisi Google
-      const name = iframe.contentWindow.name;
-      log('Nama window: ' + name, name === 'secret_data_123' ? 'success' : 'info');
-    } catch (e) {
-      log('❌ Gagal baca name: ' + e.message, 'error');
-    }
-  }, 1000);
-};
+    // Ubah ke Google
+    setTimeout(() => {
+      log('Mengubah src ke https://www.google.com...', 'info');
+      iframe.src = 'https://www.google.com';
 
-// ============================================
-// METODE 4: Blob URL -> Google (kadang mewarisi origin)
-// ============================================
-document.getElementById('btn4').onclick = () => {
-  log('=== METODE 4: Blob URL Defect ===', 'info');
-  
-  const html = '<html><body><h1>Blank</h1><script>window.location="https://www.google.com"<\/script></body></html>';
-  const blob = new Blob([html], {type: 'text/html'});
-  const url = URL.createObjectURL(blob);
-  
-  const iframe = document.createElement('iframe');
-  iframe.src = url;
-  document.body.appendChild(iframe);
-  
-  setTimeout(() => {
-    try {
-      const doc = iframe.contentDocument;
-      if (doc) {
-        log('✅ Bisa akses dokumen setelah blob redirect ke Google!', 'success');
-        log('Title: ' + doc.title, 'success');
-      } else {
-        log('❌ Blob origin terpisah.', 'info');
-      }
-    } catch (e) {
-      log('❌ Gagal: ' + e.message, 'error');
-    }
-  }, 1500);
-};
+      setTimeout(() => {
+        safeAccess(iframe, 'Metode 3');
+      }, 1500);
+    }, 500);
+  };
 
-// Tambahkan tombol ke-3 dan ke-4 ke DOM
-const controls = document.createElement('div');
-controls.innerHTML = `
-  <button id="btn3" style="padding:10px; margin:5px;">Uji window.name</button>
-  <button id="btn4" style="padding:10px; margin:5px;">Uji Blob URL Redirect</button>
-`;
-document.body.insertBefore(controls, document.getElementById('log'));
+  // ============================================
+  // METODE 4: Blob URL → Google
+  // ============================================
+  document.getElementById('btn4').onclick = () => {
+    log('=== METODE 4: Blob URL → Google ===', 'info');
+    clearLog();
 
-// Re-bind after insertion
-document.getElementById('btn3').onclick = () => {
-  log('=== METODE 3: window.name Leak ===', 'info');
-  const iframe = document.createElement('iframe');
-  iframe.src = 'about:blank';
-  iframe.name = 'leak_test';
-  document.body.appendChild(iframe);
-  iframe.contentWindow.name = 'secret_data_123';
-  iframe.src = 'https://www.google.com';
-  setTimeout(() => {
-    try {
-      const name = iframe.contentWindow.name;
-      log('Nama window: ' + name, name === 'secret_data_123' ? 'success' : 'info');
-    } catch (e) {
-      log('❌ Gagal baca name: ' + e.message, 'error');
-    }
-  }, 1000);
-};
+    const html = '<!DOCTYPE html><html><body><h1>Blob Frame</h1><script>window.location="https://www.google.com"<\/script></body></html>';
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
 
-document.getElementById('btn4').onclick = () => {
-  log('=== METODE 4: Blob URL Defect ===', 'info');
-  const html = '<html><body><h1>Blank</h1><script>window.location="https://www.google.com"<\/script></body></html>';
-  const blob = new Blob([html], {type: 'text/html'});
-  const url = URL.createObjectURL(blob);
-  const iframe = document.createElement('iframe');
-  iframe.src = url;
-  document.body.appendChild(iframe);
-  setTimeout(() => {
-    try {
-      const doc = iframe.contentDocument;
-      if (doc) {
-        log('✅ Bisa akses dokumen setelah blob redirect ke Google!', 'success');
-        log('Title: ' + doc.title, 'success');
-      } else {
-        log('❌ Blob origin terpisah.', 'info');
-      }
-    } catch (e) {
-      log('❌ Gagal: ' + e.message, 'error');
-    }
-  }, 1500);
-};
+    const iframe = document.createElement('iframe');
+    iframe.src = url;
+    iframe.style.display = 'block';
+    frameContainer.appendChild(iframe);
 
+    setTimeout(() => {
+      safeAccess(iframe, 'Metode 4');
+      URL.revokeObjectURL(url);
+    }, 2000);
+  };
+
+  // ============================================
+  // METODE 5: Iframe srcdoc → Google
+  // ============================================
+  document.getElementById('btn5').onclick = () => {
+    log('=== METODE 5: Iframe srcdoc → Google ===', 'info');
+    clearLog();
+
+    const iframe = document.createElement('iframe');
+    iframe.srcdoc = '<!DOCTYPE html><html><body><h1>srcdoc Frame</h1><script>window.location="https://www.google.com"<\/script></body></html>';
+    iframe.style.display = 'block';
+    frameContainer.appendChild(iframe);
+
+    setTimeout(() => {
+      safeAccess(iframe, 'Metode 5');
+    }, 2000);
+  };
+
+  // ============================================
+  // METODE 6: Data URL → Google
+  // ============================================
+  document.getElementById('btn6').onclick = () => {
+    log('=== METODE 6: Data URL → Google ===', 'info');
+    clearLog();
+
+    const html = '<!DOCTYPE html><html><body><h1>Data URL Frame</h1><script>window.location="https://www.google.com"<\/script></body></html>';
+    const dataUrl = 'data:text/html;base64,' + btoa(unescape(encodeURIComponent(html)));
+
+    const iframe = document.createElement('iframe');
+    iframe.src = dataUrl;
+    iframe.style.display = 'block';
+    frameContainer.appendChild(iframe);
+
+    setTimeout(() => {
+      safeAccess(iframe, 'Metode 6');
+    }, 2000);
+  };
+
+  // ============================================
+  // CLEAR LOG
+  // ============================================
+  document.getElementById('clear').onclick = () => {
+    clearLog();
+    log('Log dibersihkan.', 'info');
+  };
+
+  // ============================================
+  // INIT
+  // ============================================
+  log('SOP Bypass Test Suite siap. Pilih metode di atas.', 'info');
+
+})();
 </script>
 </body>
 </html>
