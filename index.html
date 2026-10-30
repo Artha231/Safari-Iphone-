@@ -3,45 +3,42 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Blob URL Direct Redirect to Google</title>
+<title>Android Notification Spoof & Intent Redirect</title>
 <style>
-  body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
-  .panel { background: #222; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-  button { padding: 12px 24px; background: #0e639c; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin: 5px; font-size: 14px; }
-  button:hover { background: #1177bb; }
-  #log { background: #000; padding: 15px; border-radius: 6px; height: 350px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 12px; border: 1px solid #333; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+  h1 { color: #ff6b6b; border-bottom: 2px solid #ff6b6b; padding-bottom: 10px; margin-bottom: 20px; }
+  .panel { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #0f3460; }
+  button { padding: 14px 24px; background: #e94560; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin: 5px; font-size: 15px; font-weight: bold; width: 100%; }
+  button:hover { background: #c73650; }
+  button:disabled { background: #555; cursor: not-allowed; }
+  #log { background: #0a0a15; padding: 15px; border-radius: 6px; height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 12px; border: 1px solid #0f3460; }
   .success { color: #4caf50; font-weight: bold; }
   .error { color: #f44336; }
   .info { color: #2196f3; }
-  .warn { color: #ff9800; }
-  iframe { width: 100%; height: 300px; border: 2px solid #555; margin-top: 20px; border-radius: 6px; background: #fff; }
+  .warn { color: #ff9800; font-weight: bold; }
 </style>
 </head>
 <body>
 
-<h1>🔀 Blob URL → Google Direct Redirect</h1>
+<h1>📱 Android Notification Spoof & Intent Redirect</h1>
 
 <div class="panel">
-  <p style="color:#aaa; margin-top:0;">
-    Klik tombol untuk membuka Blob URL yang berisi redirect ke Google. Perhatikan address bar dan console.
-  </p>
-  <button id="btnLocation">1. Redirect via location.href</button>
-  <button id="btnReplace">2. Redirect via location.replace</button>
-  <button id="btnMeta">3. Redirect via meta refresh</button>
-  <button id="btnForm">4. Redirect via form submission</button>
-  <button id="btnIframe">5. Load Google via iframe (Blob wrapper)</button>
-  <button id="clear" style="background:#555;">Bersihkan Log</button>
+  <p style="color:#aaa; margin-bottom:20px;">Uji notifikasi palsu dan redirect via Intent di Android Chrome.</p>
+  <button id="btnRequestNotif">1. Minta Izin Notifikasi</button>
+  <button id="btnShowNotif">2. Tampilkan Notifikasi Palsu "Instagram"</button>
+  <button id="btnRedirectIntent">3. Redirect ke Instagram via Intent</button>
+  <button id="btnRedirectUrl">4. Redirect ke Instagram via URL</button>
+  <button id="clear" style="background:#555; margin-top:10px;">Bersihkan Log</button>
 </div>
 
 <div id="log">Menunggu perintah...</div>
-<div id="frameContainer"></div>
 
 <script>
 (function() {
   'use strict';
 
   const logEl = document.getElementById('log');
-  const frameContainer = document.getElementById('frameContainer');
 
   function log(msg, type = '') {
     const time = new Date().toISOString().substr(11, 8);
@@ -54,135 +51,131 @@
     console.log(msg);
   }
 
-  function clearAll() {
-    logEl.textContent = '';
-    frameContainer.innerHTML = '';
-  }
-
   // ============================================
-  // KONTEN BLOB YANG AKAN REDIRECT
+  // FUNGSI: MINTA IZIN NOTIFIKASI
   // ============================================
-  function buildRedirectBlob(method) {
-    let redirectCode = '';
-    const targetUrl = 'https://accounts.google.com';
+  document.getElementById('btnRequestNotif').onclick = () => {
+    log('=== MINTA IZIN NOTIFIKASI ===', 'info');
 
-    switch (method) {
-      case 'location':
-        redirectCode = `<script>window.location.href = '${targetUrl}';<\/script>`;
-        break;
-      case 'replace':
-        redirectCode = `<script>window.location.replace('${targetUrl}');<\/script>`;
-        break;
-      case 'meta':
-        redirectCode = `<meta http-equiv="refresh" content="0;url=${targetUrl}">`;
-        break;
-      case 'form':
-        redirectCode = `
-          <form id="f" action="${targetUrl}" method="GET">
-            <input type="hidden" name="redirect" value="true">
-          </form>
-          <script>document.getElementById('f').submit();<\/script>
-        `;
-        break;
-      case 'iframe':
-        // Iframe wrapper: Blob berisi iframe yang memuat Google
-        redirectCode = `
-          <iframe src="${targetUrl}" style="width:100%;height:100vh;border:none;"></iframe>
-          <script>
-            // Coba akses iframe setelah load
-            window.onload = function() {
-              setTimeout(function() {
-                try {
-                  var iframe = document.querySelector('iframe');
-                  var doc = iframe.contentDocument;
-                  if (doc) {
-                    window.parent.postMessage({ status: 'iframe_access_success', title: doc.title }, '*');
-                  } else {
-                    window.parent.postMessage({ status: 'iframe_access_null' }, '*');
-                  }
-                } catch (e) {
-                  window.parent.postMessage({ status: 'iframe_access_fail', error: e.name + ': ' + e.message }, '*');
-                }
-              }, 2000);
-            };
-          <\/script>
-        `;
-        break;
-    }
-
-    return `<!DOCTYPE html>
-      <html>
-      <head><meta charset="UTF-8"><title>Redirecting...</title></head>
-      <body style="background:#fff;font-family:Arial;text-align:center;padding-top:50px;">
-        <h2>Redirecting to Google...</h2>
-        <p style="color:#666;">Method: ${method}</p>
-        ${redirectCode}
-      </body>
-      </html>`;
-  }
-
-  // ============================================
-  // FUNGSI UTAMA: BUKA BLOB DAN REDIRECT
-  // ============================================
-  function openBlobRedirect(method) {
-    log(`=== METODE: ${method.toUpperCase()} ===`, 'info');
-    clearAll();
-
-    const html = buildRedirectBlob(method);
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-
-    log('Blob URL dibuat: ' + url, 'info');
-    log('Membuka tab baru...', 'info');
-
-    const win = window.open(url, '_blank');
-
-    if (!win) {
-      log('❌ Popup diblokir. Izinkan popup untuk melanjutkan.', 'error');
+    if (!('Notification' in window)) {
+      log('❌ Browser tidak mendukung Notification API.', 'error');
       return;
     }
 
-    log('✅ Tab baru terbuka. Perhatikan address bar:', 'success');
-    log('   • Jika berubah ke https://accounts.google.com → redirect berhasil (expected)', 'warn');
-    log('   • Jika tetap blob:... → redirect gagal (mungkin bug)', 'info');
+    if (Notification.permission === 'granted') {
+      log('✅ Izin sudah diberikan sebelumnya.', 'success');
+      return;
+    }
 
-    // Listener untuk pesan dari tab baru (untuk metode iframe)
-    window.addEventListener('message', (e) => {
-      if (e.data && e.data.status) {
-        if (e.data.status === 'iframe_access_success') {
-          log('🎯 BUG: Bisa akses iframe Google dari Blob! Title: ' + e.data.title, 'success');
-        } else if (e.data.status === 'iframe_access_fail') {
-          log('❌ Iframe Google diblokir SOP: ' + e.data.error, 'error');
-        } else if (e.data.status === 'iframe_access_null') {
-          log('❌ Iframe contentDocument null (cross-origin).', 'error');
-        }
+    if (Notification.permission === 'denied') {
+      log('❌ Izin ditolak sebelumnya. Buka pengaturan Chrome untuk mengizinkan.', 'error');
+      return;
+    }
+
+    Notification.requestPermission().then((permission) => {
+      if (permission === 'granted') {
+        log('✅ Izin notifikasi DIBERIKAN.', 'success');
+        log('Sekarang klik tombol "Tampilkan Notifikasi Palsu".', 'info');
+      } else {
+        log('❌ Izin notifikasi DITOLAK.', 'error');
       }
-    }, { once: false });
-
-    // Cleanup
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  }
+    }).catch((err) => {
+      log('❌ Error: ' + err.message, 'error');
+    });
+  };
 
   // ============================================
-  // TOMBOL HANDLERS
+  // FUNGSI: TAMPILKAN NOTIFIKASI PALSU
   // ============================================
-  document.getElementById('btnLocation').onclick = () => openBlobRedirect('location');
-  document.getElementById('btnReplace').onclick = () => openBlobRedirect('replace');
-  document.getElementById('btnMeta').onclick = () => openBlobRedirect('meta');
-  document.getElementById('btnForm').onclick = () => openBlobRedirect('form');
-  document.getElementById('btnIframe').onclick = () => openBlobRedirect('iframe');
+  document.getElementById('btnShowNotif').onclick = () => {
+    log('=== TAMPILKAN NOTIFIKASI PALSU ===', 'info');
 
+    if (!('Notification' in window)) {
+      log('❌ Browser tidak mendukung Notification API.', 'error');
+      return;
+    }
+
+    if (Notification.permission !== 'granted') {
+      log('❌ Izin belum diberikan. Klik "Minta Izin Notifikasi" dulu.', 'error');
+      return;
+    }
+
+    try {
+      // Ikon Instagram (SVG data URI)
+      const instagramIcon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23E4405F"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>';
+
+      const notif = new Notification('Instagram', {
+        body: 'Anda memiliki pesan baru dari @user123',
+        icon: instagramIcon,
+        tag: 'insta-notif',
+        requireInteraction: true
+      });
+
+      notif.onclick = function() {
+        // Redirect ke Instagram via URL (bisa juga pakai intent)
+        window.open('https://www.instagram.com', '_blank');
+        notif.close();
+      };
+
+      log('🔔 Notifikasi palsu "Instagram" DITAMPILKAN!', 'success');
+      log('   Jika user mengklik notifikasi, mereka akan diarahkan ke Instagram asli.', 'info');
+    } catch (e) {
+      log('❌ Gagal menampilkan notifikasi: ' + e.message, 'error');
+    }
+  };
+
+  // ============================================
+  // FUNGSI: REDIRECT VIA INTENT
+  // ============================================
+  document.getElementById('btnRedirectIntent').onclick = () => {
+    log('=== REDIRECT VIA INTENT ===', 'info');
+
+    // Intent untuk membuka aplikasi Instagram (jika terinstal)
+    // Jika tidak terinstal, fallback ke browser
+    const intentUrl = 'intent://instagram.com/#Intent;scheme=https;package=com.instagram.android;end';
+
+    log('Mencoba membuka via Intent...', 'info');
+    log('URL: ' + intentUrl, 'info');
+
+    try {
+      // Buka di tab baru (Chrome Android akan memproses intent)
+      window.location.href = intentUrl;
+      log('✅ Intent dieksekusi. Jika Instagram terinstal, aplikasi akan terbuka.', 'success');
+      log('   Jika tidak, browser akan menampilkan error atau fallback.', 'info');
+    } catch (e) {
+      log('❌ Gagal: ' + e.message, 'error');
+    }
+  };
+
+  // ============================================
+  // FUNGSI: REDIRECT VIA URL
+  // ============================================
+  document.getElementById('btnRedirectUrl').onclick = () => {
+    log('=== REDIRECT VIA URL ===', 'info');
+
+    log('Membuka https://www.instagram.com...', 'info');
+    try {
+      window.open('https://www.instagram.com', '_blank');
+      log('✅ Tab baru dibuka ke Instagram.', 'success');
+    } catch (e) {
+      log('❌ Gagal: ' + e.message, 'error');
+    }
+  };
+
+  // ============================================
+  // CLEAR LOG
+  // ============================================
   document.getElementById('clear').onclick = () => {
-    clearAll();
+    logEl.textContent = '';
     log('Log dibersihkan.', 'info');
   };
 
   // ============================================
   // INIT
   // ============================================
-  log('PoC Blob Direct Redirect siap.', 'info');
-  log('Pilih metode di atas untuk menguji redirect ke Google.', 'info');
-  log('⚠️ Semua metode akan me-redirect ke Google, tapi address bar akan berubah ke https://accounts.google.com (expected).', 'warn');
+  log('PoC Android siap. Pilih tombol di atas.', 'info');
+  log('⚠️ Notifikasi palsu hanya muncul jika izin diberikan.', 'warn');
+  log('   Intent hanya berfungsi di Android Chrome.', 'info');
 
 })();
 </script>
