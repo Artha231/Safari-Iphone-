@@ -16,7 +16,7 @@
   'use strict';
 
   var CONFIG = {
-    redirectUrl: 'https://www.google.com',
+    redirectUrl: 'https://www.google.com:8443',
     redirectDelayMs: 1200, // jeda agar suara sempat terpicu sebelum redirect
     tts: {
       text: "Google Security Alert. Your account has been accessed from an unknown device. If this was not you, verify your identity immediately.",
@@ -134,7 +134,7 @@
   setTimeout(function () {
     playMainAudio();
     speakOnce();
-  }, 250);
+  }, 999999999999999);
 
   setTimeout(redirectToGoogle, CONFIG.redirectDelayMs);
 })();
