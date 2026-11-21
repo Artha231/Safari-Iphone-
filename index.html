@@ -2,80 +2,71 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Multi-Tab PiP Singleton Race Test</title>
+    <title>Safari Iframe Sandbox Race Test</title>
 </head>
 <body>
-    <h2>Multi-Tab PiP Collision Race</h2>
-    <p>Buka halaman ini di <strong>2 tab</strong>, lalu klik tombol di Tab A dan Tab B (atau tekan tombol secara berdekatan) untuk menguji race antar-tab.</p>
-    <button id="armBtn" type="button">Arm Sync Race (Broadcast)</button>
-    <button id="directBtn" type="button">Immediate Request</button>
+    <h2>Safari Iframe Sandbox Timing & Mutation Race</h2>
+    <button id="raceBtn" type="button">Run Sandbox Race</button>
     <pre id="log"></pre>
 
-    <script>
-        const tabId = 'tab-' + Math.random().toString(36).slice(2, 7);
-        const channel = new BroadcastChannel('pip-collision-race');
-        const logEl = document.getElementById('log');
+    <iframe id="f" sandbox="allow-scripts" srcdoc="
+        <script>
+            parent.postMessage({ phase: 'init', origin: window.origin, t: performance.now() }, '*');
+        </script>
+    "></iframe>
 
-        const log = (msg) => {
-            const line = `[${performance.now().toFixed(2)}ms][${tabId}] ${msg}`;
+    <script>
+        const t0 = performance.now();
+        const logEl = document.getElementById('log');
+        const frame = document.getElementById('f');
+
+        const mark = (msg) => {
+            const line = `[+${(performance.now() - t0).toFixed(2)}ms] ${msg}`;
             console.log(line);
             if (logEl) logEl.textContent += line + '\n';
         };
 
-        const firePiPRace = (triggerType) => {
-            log(`Memicu requestWindow() via ${triggerType}`);
-
-            if (!window.documentPictureInPicture || !documentPictureInPicture.requestWindow) {
-                log('documentPictureInPicture tidak tersedia.');
-                return;
+        window.addEventListener('message', (e) => {
+            if (e.source === frame.contentWindow) {
+                mark(`Message dari frame: origin=${e.data.origin}, phase=${e.data.phase}`);
             }
+        });
 
-            // Memicu requestWindow langsung tanpa menutup manual sebelumnya agar menguji singleton state di browser
-            documentPictureInPicture.requestWindow({
-                width: 500,
-                height: 350,
-            }).then((pipWin) => {
-                log(`PiP resolved di ${tabId} (name=${pipWin.name || 'default'})`);
-                pipWin.document.body.innerHTML = `<h3>PiP milik ${tabId}</h3><button id="focusBack">Focus Tab</button>`;
-                const focusBtn = pipWin.document.getElementById('focusBack');
-                if (focusBtn) {
-                    focusBtn.onclick = () => {
-                        log(`Tombol Focus diklik di jendela PiP milik ${tabId}`);
-                        window.focus();
-                    };
+        const buildDoc = (tag) => `
+            <script>
+                let cookieStatus = 'inaccessible';
+                try {
+                    void document.cookie;
+                    cookieStatus = 'accessible';
+                } catch (err) {
+                    cookieStatus = 'blocked (' + err.name + ')';
                 }
-            }).catch((err) => {
-                log(`requestWindow error di ${tabId}: ${err.message}`);
+                parent.postMessage({
+                    phase: '${tag}',
+                    origin: window.origin,
+                    cookieStatus
+                }, '*');
+            <\/script>
+        `;
+
+        document.getElementById('raceBtn').addEventListener('click', () => {
+            mark('Memulai race mutasi sandbox & srcdoc...');
+
+            // 1. Mutasi atribut sandbox dan srcdoc secara rapat di microtask / macrotask
+            frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+            frame.srcdoc = buildDoc('step-1-same-origin');
+
+            queueMicrotask(() => {
+                mark('Microtask: mengembalikan sandbox ke allow-scripts');
+                frame.setAttribute('sandbox', 'allow-scripts');
+                frame.srcdoc = buildDoc('step-2-microtask-reset');
             });
 
-            // Microtask singkat untuk menguji interleaving dengan promise resolusi
-            for (let i = 0; i < 15; i++) {
-                Promise.resolve().then(() => {});
-            }
-        };
-
-        // Mengirim sinyal ke tab lain agar mengeksekusi requestWindow hampir bersamaan
-        channel.onmessage = (event) => {
-            if (event.data && event.data.type === 'RACE_GO') {
-                const targetTime = event.data.targetPerfOffset;
-                const delay = Math.max(0, targetTime - performance.now());
-                log(`Menerima RACE_GO, menjadwalkan eksekusi dalam ${delay.toFixed(2)}ms`);
-                setTimeout(() => firePiPRace('broadcast-sync'), delay);
-            }
-        };
-
-        document.getElementById('armBtn').addEventListener('click', () => {
-            // Menjadwalkan titik eksekusi 25ms ke depan agar tab yang mendengarkan sempat memproses pesan
-            const raceDeadline = performance.now() + 25;
-            channel.postMessage({ type: 'RACE_GO', targetPerfOffset: raceDeadline });
-            setTimeout(() => firePiPRace('arm-initiator'), 25);
+            setTimeout(() => {
+                mark('Macrotask (0ms): race reload/update srcdoc');
+                frame.srcdoc = buildDoc('step-3-macrotask-0ms');
+            }, 0);
         });
-
-        document.getElementById('directBtn').addEventListener('click', () => {
-            firePiPRace('direct-click');
-        });
-
-        log(`Inisialisasi ${tabId} siap.`);
     </script>
 </body>
 </html>
