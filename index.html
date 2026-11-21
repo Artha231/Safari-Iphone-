@@ -2,61 +2,99 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Fast PiP & Navigation Race Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fast Document PiP & Navigation Race Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 24px;
+            line-height: 1.5;
+        }
+        button {
+            padding: 10px 18px;
+            font-size: 15px;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        #status {
+            margin-top: 14px;
+            padding: 10px 12px;
+            background: #f4f4f6;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-line;
+        }
+    </style>
 </head>
 <body>
-    <h1>Hold Enter or Click Button</h1>
-    <button id="raceBtn" type="button">Trigger Fast PiP & Navigation Race</button>
-    <pre id="log">Menunggu klik tombol atau penekanan Enter...</pre>
+    <h1>Hold Enter</h1>
+    <button id="btn" type="button">Start</button>
+    <button id="resetBtn" type="button">Reset Counter</button>
+    <div id="status">Menunggu Enter atau klik Start...</div>
 
     <script>
-        const t0 = performance.now();
-        const logEl = document.getElementById('log');
+        let i = 0;
+        const maxRuns = 5;
+        const statusEl = document.getElementById('status');
+        const btnEl = document.getElementById('btn');
+        const resetBtnEl = document.getElementById('resetBtn');
 
-        const log = (msg) => {
-            const delta = (performance.now() - t0).toFixed(2);
-            const line = `[+${delta}ms] ${msg}`;
-            if (logEl) logEl.textContent += `\n${line}`;
-            console.log(line);
+        const updateStatus = (text) => {
+            if (statusEl) {
+                statusEl.textContent = `[count=${i}/${maxRuns}] ${text}`;
+            }
+            console.log('[PiP-RACE]', i, text);
         };
 
-        const triggerFastRace = (source) => {
-            log(`Trigger langsung dari ${source}`);
+        const pipOpen = () => {
+            if (i > maxRuns) {
+                updateStatus('Batas iterasi tercapai.');
+                return;
+            }
+            i++;
 
-            if (!('documentPictureInPicture' in window)) {
-                log('documentPictureInPicture tidak didukung.');
+            if (!('documentPictureInPicture' in window) || typeof documentPictureInPicture.requestWindow !== 'function') {
+                updateStatus('documentPictureInPicture tidak didukung di browser ini.');
                 return;
             }
 
-            // 1. Eksekusi langsung di dalam synchronous user gesture (tanpa delay setTimeout)
+            updateStatus('Memanggil documentPictureInPicture.requestWindow()...');
+
             documentPictureInPicture.requestWindow({
                 width: 600,
                 height: 400,
             }).then((pipWindow) => {
-                log('pipWindow resolved -> langsung ubah lokasi PiP');
-                // Menggunakan about:blank / target cepat agar tidak tertahan latensi jaringan
-                pipWindow.location.href = 'about:blank';
+                updateStatus('pipWindow resolved -> mengubah pipWindow.location.href');
+                try {
+                    pipWindow.location.href = 'https://example.com';
+                } catch (err) {
+                    updateStatus(`Gagal mengubah pipWindow.location.href: ${err.message}`);
+                }
             }).catch((err) => {
-                log(`requestWindow gagal: ${err.message}`);
+                updateStatus(`requestWindow gagal/ditolak: ${err && err.message ? err.message : err}`);
             });
 
-            // 2. Jadwalkan navigasi utama di macrotask terdekat (0ms) atau microtask
-            // Ubah nilai 0 ini (misal 0, 5, 15, 30) untuk mencari titik temu race dengan IPC PiP
+            // Jeda dipercepat dari 100ms menjadi 0ms agar langsung balapan dengan resolusi PiP
             setTimeout(() => {
-                log('Navigasi halaman utama dijalankan');
-                location.href = 'https://google.com';
+                updateStatus('Menjalankan navigasi location.href...');
+                location.href = 'https://google.com/x';
             }, 0);
         };
 
-        document.getElementById('raceBtn').addEventListener('click', () => {
-            triggerFastRace('click');
-        });
-
-        document.body.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' && !event.repeat) {
-                triggerFastRace('keydown:Enter');
+        // onkeypress + onkeydown agar langsung jalan sejak milidetik pertama tombol ditekan
+        document.body.onkeypress = pipOpen;
+        document.body.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                pipOpen();
             }
-        });
+        };
+        btnEl.onclick = pipOpen;
+
+        resetBtnEl.onclick = () => {
+            i = 0;
+            updateStatus('Counter direset.');
+        };
     </script>
 </body>
 </html>
