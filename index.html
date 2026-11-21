@@ -3,106 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hold Enter Direct Redirect & PiP Race</title>
-    <style>
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            padding: 24px;
-            line-height: 1.5;
-        }
-        button {
-            padding: 10px 18px;
-            font-size: 15px;
-            cursor: pointer;
-            margin-right: 8px;
-        }
-        #status {
-            margin-top: 14px;
-            padding: 10px 12px;
-            background: #f4f4f6;
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: 13px;
-            white-space: pre-line;
-        }
-    </style>
+    <title>Click Redirect vs PiP Win Race</title>
 </head>
 <body>
-    <h1>Hold Enter</h1>
-    <button id="btn" type="button">Trigger Direct & Race</button>
-    <button id="resetBtn" type="button">Reset</button>
-    <div id="status">Tahan tombol Enter atau klik tombol untuk memulai...</div>
+    <h1>Click to Race Redirect & PiP</h1>
+    <button id="btn" type="button">Click Race</button>
+    <pre id="out"></pre>
 
     <script>
-        let i = 0;
-        const maxRuns = 8;
-        const statusEl = document.getElementById('status');
-        const btnEl = document.getElementById('btn');
-        const resetBtnEl = document.getElementById('resetBtn');
+        const t0 = performance.now();
+        const out = document.getElementById('out');
 
-        const logMsg = (msg) => {
-            if (statusEl) {
-                statusEl.textContent = `[#${i}/${maxRuns}] ${msg}`;
-            }
-            console.log('[HOLD-RACE]', i, msg);
+        const mark = (label) => {
+            const line = `[+${(performance.now() - t0).toFixed(2)}ms] ${label}`;
+            console.log(line);
+            if (out) out.textContent += line + '\n';
         };
 
-        const runHoldRace = (mode = 'hold') => {
-            if (i >= maxRuns) return;
-            i++;
+        document.getElementById('btn').addEventListener('click', () => {
+            mark('Click diterima');
 
-            logMsg(`Mode=${mode}: memicu requestWindow() & race redirect...`);
-
-            // 1. Memicu Document Picture-in-Picture secara paralel
-            if ('documentPictureInPicture' in window && typeof documentPictureInPicture.requestWindow === 'function') {
-                documentPictureInPicture.requestWindow({
+            // 1. Picu Document PiP terlebih dahulu agar request IPC mulai berjalan di latar belakang
+            let pipPromise = null;
+            if (window.documentPictureInPicture && documentPictureInPicture.requestWindow) {
+                pipPromise = documentPictureInPicture.requestWindow({
                     width: 600,
                     height: 400,
                 }).then((pipWindow) => {
-                    logMsg(`Mode=${mode}: pipWindow terbuka -> redirect PiP`);
+                    mark('PIP MENANG / RESOLVED -> ubah lokasi PiP');
                     try {
                         pipWindow.location.href = 'https://example.com';
-                    } catch (err) {
-                        logMsg(`Mode=${mode}: gagal ubah lokasi PiP (${err.message})`);
+                    } catch (e) {
+                        mark('Gagal ubah lokasi PiP: ' + e.message);
                     }
+                    return pipWindow;
                 }).catch((err) => {
-                    logMsg(`Mode=${mode}: requestWindow gagal/ditolak (${err && err.message ? err.message : err})`);
+                    mark('PiP ditolak/gagal: ' + (err && err.message ? err.message : err));
                 });
             }
 
-            // 2. Microtask burst untuk menguji urutan resolusi Promise vs macrotask timer
-            for (let k = 0; k < 20; k++) {
-                Promise.resolve().then(() => {});
-            }
-
-            // 3. Direct redirect pada halaman utama dengan jeda minimal (0ms) saat di-hold
-            setTimeout(() => {
-                logMsg(`Mode=${mode}: mengeksekusi redirect location.href...`);
+            // 2. Dorong navigasi utama lewat microtask / macrotask singkat agar langsung redirect
+            queueMicrotask(() => {
+                mark('REDIRECT DIPICU -> location.href');
                 location.href = 'https://google.com/x';
-            }, 0);
-        };
-
-        // Saat Enter ditekan atau ditahan (termasuk event.repeat === true), langsung jalankan race & redirect
-        document.body.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                runHoldRace(e.repeat ? 'hold-repeat' : 'initial-press');
-            }
+            });
         });
-
-        document.body.onkeypress = (e) => {
-            if (e.key === 'Enter') {
-                runHoldRace('keypress');
-            }
-        };
-
-        btnEl.onclick = () => {
-            runHoldRace('click');
-        };
-
-        resetBtnEl.onclick = () => {
-            i = 0;
-            logMsg('Counter direset. Siap diuji kembali.');
-        };
     </script>
 </body>
 </html>
