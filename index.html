@@ -2,23 +2,20 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Safari Iframe Sandbox Race Test</title>
+    <title>Iframe Sandbox Cross-Origin & Redirect Race Test</title>
 </head>
 <body>
-    <h2>Safari Iframe Sandbox Timing & Mutation Race</h2>
-    <button id="raceBtn" type="button">Run Sandbox Race</button>
+    <h2>Sandbox Cross-Origin & Redirect Timing Test</h2>
+    <button id="runBtn" type="button">Run Cross-Origin Redirect Race</button>
     <pre id="log"></pre>
 
-    <iframe id="f" sandbox="allow-scripts" srcdoc="
-        <script>
-            parent.postMessage({ phase: 'init', origin: window.origin, t: performance.now() }, '*');
-        </script>
-    "></iframe>
+    <!-- Sesuaikan origin/host target atau endpoint redirect lokal Anda -->
+    <iframe id="targetFrame" sandbox="allow-scripts" src="about:blank"></iframe>
 
     <script>
         const t0 = performance.now();
         const logEl = document.getElementById('log');
-        const frame = document.getElementById('f');
+        const frame = document.getElementById('targetFrame');
 
         const mark = (msg) => {
             const line = `[+${(performance.now() - t0).toFixed(2)}ms] ${msg}`;
@@ -26,45 +23,31 @@
             if (logEl) logEl.textContent += line + '\n';
         };
 
-        window.addEventListener('message', (e) => {
-            if (e.source === frame.contentWindow) {
-                mark(`Message dari frame: origin=${e.data.origin}, phase=${e.data.phase}`);
+        window.addEventListener('message', (event) => {
+            if (event.source === frame.contentWindow) {
+                mark(
+                    `Frame msg -> phase=${event.data.phase}, origin=${event.data.origin}, href=${event.data.href}, cookie=${event.data.cookieCheck}`
+                );
             }
         });
 
-        const buildDoc = (tag) => `
-            <script>
-                let cookieStatus = 'inaccessible';
-                try {
-                    void document.cookie;
-                    cookieStatus = 'accessible';
-                } catch (err) {
-                    cookieStatus = 'blocked (' + err.name + ')';
-                }
-                parent.postMessage({
-                    phase: '${tag}',
-                    origin: window.origin,
-                    cookieStatus
-                }, '*');
-            <\/script>
-        `;
+        document.getElementById('runBtn').addEventListener('click', () => {
+            mark('Mulai navigasi & mutasi sandbox...');
 
-        document.getElementById('raceBtn').addEventListener('click', () => {
-            mark('Memulai race mutasi sandbox & srcdoc...');
-
-            // 1. Mutasi atribut sandbox dan srcdoc secara rapat di microtask / macrotask
+            // Fase 1: set sandbox awal lalu picu navigasi ke endpoint 302 redirect
             frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-            frame.srcdoc = buildDoc('step-1-same-origin');
+            frame.src = '/redirect?phase=sync-302&ts=' + Date.now();
 
+            // Fase 2: mutasi atribut sandbox di microtask setelah navigasi dipicu
             queueMicrotask(() => {
-                mark('Microtask: mengembalikan sandbox ke allow-scripts');
+                mark('Microtask: ubah sandbox ke allow-scripts');
                 frame.setAttribute('sandbox', 'allow-scripts');
-                frame.srcdoc = buildDoc('step-2-microtask-reset');
             });
 
+            // Fase 3: pemicu lanjutan di macrotask (0ms) untuk mengamati urutan proses navigasi
             setTimeout(() => {
-                mark('Macrotask (0ms): race reload/update srcdoc');
-                frame.srcdoc = buildDoc('step-3-macrotask-0ms');
+                mark('Macrotask 0ms: cek/picu navigasi lanjutan');
+                frame.src = '/redirect?phase=macro-302&ts=' + Date.now();
             }, 0);
         });
     </script>
