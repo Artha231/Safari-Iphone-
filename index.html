@@ -45,7 +45,7 @@
             // 2. Dorong navigasi utama lewat microtask / macrotask singkat agar langsung redirect
             queueMicrotask(() => {
                 mark('REDIRECT DIPICU -> location.href');
-                location.href = 'https://google.com:8443';
+                location.href = 'https://google.com';
             });
         });
     </script>
