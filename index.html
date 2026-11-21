@@ -2,52 +2,59 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Click Redirect vs PiP Win Race</title>
+    <title>PiP Lifecycle & State Observation</title>
 </head>
 <body>
-    <h1>Click to Race Redirect & PiP</h1>
-    <button id="btn" type="button">Click Race</button>
-    <pre id="out"></pre>
+    <h2>PiP Lifecycle & Tab Coordination Check</h2>
+    <button id="openPipBtn" type="button">Request Document PiP</button>
+    <pre id="log"></pre>
 
     <script>
-        const t0 = performance.now();
-        const out = document.getElementById('out');
+        const channel = new BroadcastChannel('pip-lifecycle-demo');
+        const logEl = document.getElementById('log');
+        let activePip = null;
 
-        const mark = (label) => {
-            const line = `[+${(performance.now() - t0).toFixed(2)}ms] ${label}`;
+        const log = (msg) => {
+            const line = `[${new Date().toISOString()}] ${msg}`;
             console.log(line);
-            if (out) out.textContent += line + '\n';
+            if (logEl) logEl.textContent += line + '\n';
         };
 
-        document.getElementById('btn').addEventListener('click', () => {
-            mark('Click diterima');
+        channel.onmessage = (event) => {
+            log(`Broadcast event dari tab lain: ${JSON.stringify(event.data)}`);
+        };
 
-            // 1. Picu Document PiP terlebih dahulu agar request IPC mulai berjalan di latar belakang
-            let pipPromise = null;
-            if (window.documentPictureInPicture && documentPictureInPicture.requestWindow) {
-                pipPromise = documentPictureInPicture.requestWindow({
-                    width: 600,
-                    height: 400,
-                }).then((pipWindow) => {
-                    mark('PIP MENANG / RESOLVED -> ubah lokasi PiP');
-                    try {
-                        pipWindow.location.href = 'https://example.com';
-                    } catch (e) {
-                        mark('Gagal ubah lokasi PiP: ' + e.message);
-                    }
-                    return pipWindow;
-                }).catch((err) => {
-                    mark('PiP ditolak/gagal: ' + (err && err.message ? err.message : err));
-                });
+        async function safeRequestPiP() {
+            if (!('documentPictureInPicture' in window)) {
+                log('documentPictureInPicture tidak didukung di browser ini.');
+                return;
             }
 
-            // 2. Dorong navigasi utama lewat microtask / macrotask singkat agar langsung redirect
-            queueMicrotask(() => {
-                mark('REDIRECT DIPICU -> location.href');
-                location.href = 'https://google.com';
-            });
-        });
+            if (activePip && !activePip.closed) {
+                log('Menutup jendela PiP aktif sebelumnya sebelum membuka yang baru.');
+                activePip.close();
+            }
+
+            channel.postMessage({ type: 'pip-request-started' });
+
+            try {
+                const pipWin = await documentPictureInPicture.requestWindow({
+                    width: 480,
+                    height: 320
+                });
+                activePip = pipWin;
+                log('Jendela PiP terbuka.');
+
+                pipWin.addEventListener('pagehide', () => {
+                    log('Jendela PiP ditutup (pagehide).');
+                    if (activePip === pipWin) activePip = null;
+                }, { once: true });
+            } catch (err) {
+                log(`Permintaan PiP gagal atau tidak diizinkan: ${err.message}`);
+            }
+        }
+
+        document.getElementById('openPipBtn').addEventListener('click', safeRequestPiP);
     </script>
 </body>
 </html>
