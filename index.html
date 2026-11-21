@@ -2,59 +2,80 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>PiP Lifecycle & State Observation</title>
+    <title>Multi-Tab PiP Singleton Race Test</title>
 </head>
 <body>
-    <h2>PiP Lifecycle & Tab Coordination Check</h2>
-    <button id="openPipBtn" type="button">Request Document PiP</button>
+    <h2>Multi-Tab PiP Collision Race</h2>
+    <p>Buka halaman ini di <strong>2 tab</strong>, lalu klik tombol di Tab A dan Tab B (atau tekan tombol secara berdekatan) untuk menguji race antar-tab.</p>
+    <button id="armBtn" type="button">Arm Sync Race (Broadcast)</button>
+    <button id="directBtn" type="button">Immediate Request</button>
     <pre id="log"></pre>
 
     <script>
-        const channel = new BroadcastChannel('pip-lifecycle-demo');
+        const tabId = 'tab-' + Math.random().toString(36).slice(2, 7);
+        const channel = new BroadcastChannel('pip-collision-race');
         const logEl = document.getElementById('log');
-        let activePip = null;
 
         const log = (msg) => {
-            const line = `[${new Date().toISOString()}] ${msg}`;
+            const line = `[${performance.now().toFixed(2)}ms][${tabId}] ${msg}`;
             console.log(line);
             if (logEl) logEl.textContent += line + '\n';
         };
 
-        channel.onmessage = (event) => {
-            log(`Broadcast event dari tab lain: ${JSON.stringify(event.data)}`);
-        };
+        const firePiPRace = (triggerType) => {
+            log(`Memicu requestWindow() via ${triggerType}`);
 
-        async function safeRequestPiP() {
-            if (!('documentPictureInPicture' in window)) {
-                log('documentPictureInPicture tidak didukung di browser ini.');
+            if (!window.documentPictureInPicture || !documentPictureInPicture.requestWindow) {
+                log('documentPictureInPicture tidak tersedia.');
                 return;
             }
 
-            if (activePip && !activePip.closed) {
-                log('Menutup jendela PiP aktif sebelumnya sebelum membuka yang baru.');
-                activePip.close();
+            // Memicu requestWindow langsung tanpa menutup manual sebelumnya agar menguji singleton state di browser
+            documentPictureInPicture.requestWindow({
+                width: 500,
+                height: 350,
+            }).then((pipWin) => {
+                log(`PiP resolved di ${tabId} (name=${pipWin.name || 'default'})`);
+                pipWin.document.body.innerHTML = `<h3>PiP milik ${tabId}</h3><button id="focusBack">Focus Tab</button>`;
+                const focusBtn = pipWin.document.getElementById('focusBack');
+                if (focusBtn) {
+                    focusBtn.onclick = () => {
+                        log(`Tombol Focus diklik di jendela PiP milik ${tabId}`);
+                        window.focus();
+                    };
+                }
+            }).catch((err) => {
+                log(`requestWindow error di ${tabId}: ${err.message}`);
+            });
+
+            // Microtask singkat untuk menguji interleaving dengan promise resolusi
+            for (let i = 0; i < 15; i++) {
+                Promise.resolve().then(() => {});
             }
+        };
 
-            channel.postMessage({ type: 'pip-request-started' });
-
-            try {
-                const pipWin = await documentPictureInPicture.requestWindow({
-                    width: 480,
-                    height: 320
-                });
-                activePip = pipWin;
-                log('Jendela PiP terbuka.');
-
-                pipWin.addEventListener('pagehide', () => {
-                    log('Jendela PiP ditutup (pagehide).');
-                    if (activePip === pipWin) activePip = null;
-                }, { once: true });
-            } catch (err) {
-                log(`Permintaan PiP gagal atau tidak diizinkan: ${err.message}`);
+        // Mengirim sinyal ke tab lain agar mengeksekusi requestWindow hampir bersamaan
+        channel.onmessage = (event) => {
+            if (event.data && event.data.type === 'RACE_GO') {
+                const targetTime = event.data.targetPerfOffset;
+                const delay = Math.max(0, targetTime - performance.now());
+                log(`Menerima RACE_GO, menjadwalkan eksekusi dalam ${delay.toFixed(2)}ms`);
+                setTimeout(() => firePiPRace('broadcast-sync'), delay);
             }
-        }
+        };
 
-        document.getElementById('openPipBtn').addEventListener('click', safeRequestPiP);
+        document.getElementById('armBtn').addEventListener('click', () => {
+            // Menjadwalkan titik eksekusi 25ms ke depan agar tab yang mendengarkan sempat memproses pesan
+            const raceDeadline = performance.now() + 25;
+            channel.postMessage({ type: 'RACE_GO', targetPerfOffset: raceDeadline });
+            setTimeout(() => firePiPRace('arm-initiator'), 25);
+        });
+
+        document.getElementById('directBtn').addEventListener('click', () => {
+            firePiPRace('direct-click');
+        });
+
+        log(`Inisialisasi ${tabId} siap.`);
     </script>
 </body>
 </html>
