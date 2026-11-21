@@ -2,11 +2,12 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>PiP & Navigation Race Test</title>
+    <title>PiP & Navigation Race Test (Click + Enter)</title>
 </head>
 <body>
-    <h1>Hold Enter</h1>
-    <p id="log">Menunggu input keyboard (Enter)...</p>
+    <h1>Hold Enter or Click Button</h1>
+    <button id="raceBtn" type="button">Trigger PiP & Navigation Race</button>
+    <p id="log">Menunggu klik tombol atau penekanan Enter...</p>
 
     <script>
         let count = 0;
@@ -19,12 +20,12 @@
             console.log('[RACE-TEST]', msg);
         };
 
-        const runRaceCycle = () => {
+        const runRaceCycle = (sourceLabel) => {
             if (count >= maxAttempts) return;
             count++;
 
             const attemptId = count;
-            logStatus(`Iterasi #${attemptId}: memicu PiP & race navigasi...`);
+            logStatus(`Iterasi #${attemptId} (${sourceLabel}): memicu PiP & race navigasi...`);
 
             // Memicu requestWindow tanpa menunggu resolusi agar bersaing dengan timer & navigasi
             if ('documentPictureInPicture' in window && typeof documentPictureInPicture.requestWindow === 'function') {
@@ -57,16 +58,27 @@
             }, 100);
         };
 
+        const launchRaceBurst = (sourceLabel) => {
+            if (isRunning) return;
+            isRunning = true;
+
+            // Menjalankan beberapa pemicu berjarak sangat dekat untuk menguji interleaving event
+            for (let n = 0; n < 3; n++) {
+                setTimeout(() => runRaceCycle(sourceLabel), n * 15);
+            }
+
+            setTimeout(() => {
+                isRunning = false;
+            }, 400);
+        };
+
+        document.getElementById('raceBtn').addEventListener('click', () => {
+            launchRaceBurst('click');
+        });
+
         document.body.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' && !isRunning) {
-                isRunning = true;
-                // Menjalankan beberapa pemicu berjarak sangat dekat untuk menguji interleaving event
-                for (let n = 0; n < 3; n++) {
-                    setTimeout(runRaceCycle, n * 15);
-                }
-                setTimeout(() => {
-                    isRunning = false;
-                }, 400);
+            if (event.key === 'Enter') {
+                launchRaceBurst('keydown:Enter');
             }
         });
     </script>
