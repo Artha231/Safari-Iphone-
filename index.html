@@ -2,83 +2,59 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>PiP & Navigation Race Test (Click + Enter)</title>
+    <title>Fast PiP & Navigation Race Test</title>
 </head>
 <body>
     <h1>Hold Enter or Click Button</h1>
-    <button id="raceBtn" type="button">Trigger PiP & Navigation Race</button>
-    <p id="log">Menunggu klik tombol atau penekanan Enter...</p>
+    <button id="raceBtn" type="button">Trigger Fast PiP & Navigation Race</button>
+    <pre id="log">Menunggu klik tombol atau penekanan Enter...</pre>
 
     <script>
-        let count = 0;
-        const maxAttempts = 6;
-        let isRunning = false;
+        const t0 = performance.now();
+        const logEl = document.getElementById('log');
 
-        const logStatus = (msg) => {
-            const el = document.getElementById('log');
-            if (el) el.innerText = msg;
-            console.log('[RACE-TEST]', msg);
+        const log = (msg) => {
+            const delta = (performance.now() - t0).toFixed(2);
+            const line = `[+${delta}ms] ${msg}`;
+            if (logEl) logEl.textContent += `\n${line}`;
+            console.log(line);
         };
 
-        const runRaceCycle = (sourceLabel) => {
-            if (count >= maxAttempts) return;
-            count++;
+        const triggerFastRace = (source) => {
+            log(`Trigger langsung dari ${source}`);
 
-            const attemptId = count;
-            logStatus(`Iterasi #${attemptId} (${sourceLabel}): memicu PiP & race navigasi...`);
-
-            // Memicu requestWindow tanpa menunggu resolusi agar bersaing dengan timer & navigasi
-            if ('documentPictureInPicture' in window && typeof documentPictureInPicture.requestWindow === 'function') {
-                documentPictureInPicture.requestWindow({
-                    width: 600,
-                    height: 400,
-                }).then((pipWindow) => {
-                    logStatus(`Iterasi #${attemptId}: pipWindow resolved, mengubah lokasi PiP...`);
-                    try {
-                        pipWindow.location.href = 'https://example.com';
-                    } catch (err) {
-                        logStatus(`Iterasi #${attemptId}: gagal mengubah lokasi PiP (${err.message})`);
-                    }
-                }).catch((err) => {
-                    logStatus(`Iterasi #${attemptId}: requestWindow ditolak/gagal (${err.message})`);
-                });
-            } else {
-                logStatus(`Iterasi #${attemptId}: documentPictureInPicture tidak tersedia di browser ini.`);
+            if (!('documentPictureInPicture' in window)) {
+                log('documentPictureInPicture tidak didukung.');
+                return;
             }
 
-            // Menekan antrean microtask secara singkat untuk menguji urutan penyelesaian Promise vs macrotask
-            for (let k = 0; k < 25; k++) {
-                Promise.resolve().then(() => {});
-            }
+            // 1. Eksekusi langsung di dalam synchronous user gesture (tanpa delay setTimeout)
+            documentPictureInPicture.requestWindow({
+                width: 600,
+                height: 400,
+            }).then((pipWindow) => {
+                log('pipWindow resolved -> langsung ubah lokasi PiP');
+                // Menggunakan about:blank / target cepat agar tidak tertahan latensi jaringan
+                pipWindow.location.href = 'about:blank';
+            }).catch((err) => {
+                log(`requestWindow gagal: ${err.message}`);
+            });
 
-            // Timer navigasi utama yang berjalan paralel dengan resolusi jendela PiP
+            // 2. Jadwalkan navigasi utama di macrotask terdekat (0ms) atau microtask
+            // Ubah nilai 0 ini (misal 0, 5, 15, 30) untuk mencari titik temu race dengan IPC PiP
             setTimeout(() => {
-                logStatus(`Iterasi #${attemptId}: mengeksekusi navigasi halaman utama...`);
-                location.href = 'https://google.com/x';
-            }, 100);
-        };
-
-        const launchRaceBurst = (sourceLabel) => {
-            if (isRunning) return;
-            isRunning = true;
-
-            // Menjalankan beberapa pemicu berjarak sangat dekat untuk menguji interleaving event
-            for (let n = 0; n < 3; n++) {
-                setTimeout(() => runRaceCycle(sourceLabel), n * 15);
-            }
-
-            setTimeout(() => {
-                isRunning = false;
-            }, 400);
+                log('Navigasi halaman utama dijalankan');
+                location.href = 'https://google.com';
+            }, 0);
         };
 
         document.getElementById('raceBtn').addEventListener('click', () => {
-            launchRaceBurst('click');
+            triggerFastRace('click');
         });
 
         document.body.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') {
-                launchRaceBurst('keydown:Enter');
+            if (event.key === 'Enter' && !event.repeat) {
+                triggerFastRace('keydown:Enter');
             }
         });
     </script>
